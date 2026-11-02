@@ -1,0 +1,5 @@
+# The build and the tools run on Linux (or WSL): keep LF everywhere, binaries untouched.
+* text=auto eol=lf
+*.png binary
+*.gif binary
+*.fnt binary

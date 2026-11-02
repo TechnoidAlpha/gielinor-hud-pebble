@@ -12,10 +12,36 @@ pebble install --phone <phone-ip>     # developer connection enabled in the Pebb
 
 Releases are built by `.github/workflows/release.yml` when a `v*` tag is pushed.
 
-- `python3 tools/genfont.py` regenerates the pixel-font atlases after a glyph edit.
+- `python3 tools/genfont.py` regenerates the pixel-font atlases after a glyph edit. Then run
+  `python3 tools/gen_startframe.py` so the C start frame's glyphs follow (CI checks this).
 - `python3 tools/icon_sheet.py` redraws `docs/screenshots/icons.png`.
 - `tools/shots.sh` re-captures the README screenshots on the emulator. It patches `DEMO`
   (watch) and `MOCK` (phone) per variant and restores them from git afterwards.
+- `tools/startframe_diff.sh` proves the start frame hands over invisibly (below).
+- The emulator scripts (`tools/emu/`) run the emery emulator on a virtual X display, so they
+  need Linux or WSL with `Xvfb` and ImageMagick.
+
+## Start frame
+
+PebbleOS closes a watchface whenever Timeline, Health or an app opens, and starts it again on
+the way back. The JS machine takes a moment to boot, and the window showed blank until it
+painted. So `src/c/mdbl.c` paints the face's still parts first: the stone frame, the orb
+sockets and glyphs, the clock, the date and the chatbox speaker. Moddable replaces the root
+layer's update proc on its first frame, which hands the screen to JS. Until its saved data is
+restored, JS paints the same picture (`drawStill` in `main.js`), and then the orbs, weather,
+hiscores and chat fill in.
+
+For that hand-over to be invisible the two pictures must match exactly:
+
+- the C glyphs come from the same atlases the watch draws with, via
+  `tools/gen_startframe.py` → `src/c/startframe.h` (text width = the sum of advances, as Poco
+  measures it);
+- `panel`, `well`, `disc` and the orb glyphs are ports of the JS helpers (the disc's
+  `floor(sqrt(r*r - dy*dy) + 0.35)` done in integers);
+- the clock always follows the watch's 12/24-hour setting, the only one C can read, so there is
+  no clock option in Settings;
+- `tools/startframe_diff.sh` builds a C-only variant and a JS-held-before-restore variant,
+  captures both on the emulator and fails unless they are pixel-identical.
 
 ## How it is drawn
 
@@ -47,10 +73,9 @@ on real hardware before raising either number.
   Unsorted, roughly half the glyphs silently fail to draw.
 - Open-Meteo answers HTTP 429 to shared IPs. The phone keeps the last good reading and the
   face greys it out after 3 hours rather than showing wrong weather as current.
-- The face draws into the window `src/c/mdbl.c` creates, and a new Pebble window is white. The
-  face relaunches every time you come back from the menu, and when the phone opens Settings, so
-  that white showed until the JS machine painted. The window is now black, and `onDraw` paints
-  plain black until the saved data is restored, so the first visible frame is the full face.
+- The face draws into the window `src/c/mdbl.c` creates, and a new Pebble window is white, so
+  every relaunch flashed white until JS painted. Painting plain black instead (until the saved
+  data was restored) only turned the flash black; the start frame above is the fix.
 - The settings page has no `<select>`. In the Pebble app's webview the native picker opened at
   the top of the screen and then jumped to the field. Choices are rows of buttons; the skill
   list opens as a grid under its button.

@@ -19,4 +19,5 @@ First public release.
 - Original pixel fonts and 45 original icons, covering every skill in both games
 - Settings page in the Pebble app, with tap-to-choose buttons and a skill grid instead of
   drop-down menus
-- Opens straight onto the face, with no white flash while it starts
+- Comes straight back when you return from Timeline, Health or an app: the frame, clock and
+  date show at once, with no blank screen while it starts

@@ -24,7 +24,7 @@ var DEFAULTS = {
   rs3On: false, rs3Name: "", rs3Acct: "main", rs3Skill: 18,
   swap: "min", hsMode: "pick", rotMin: 5,
   loc: "gps", city: "", units: "C", wxMin: 30,
-  stepGoal: 8000, sleepGoal: 8, clock: "auto", chat: true,
+  stepGoal: 8000, sleepGoal: 8, chat: true,   // the clock follows the watch's 12/24-hour setting
 };
 var SKILLS = ["Attack", "Defence", "Strength", "Hitpoints", "Ranged", "Prayer", "Magic", "Cooking",
   "Woodcutting", "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblore",
@@ -50,7 +50,7 @@ function getCfg() {
 }
 function setCfg(c) { localStorage.setItem("cfg", JSON.stringify(c)); }
 function cfgForWatch(c) {
-  return { hour12: c.clock === "auto" ? null : c.clock === "12", stepGoal: c.stepGoal, sleepGoal: c.sleepGoal,
+  return { stepGoal: c.stepGoal, sleepGoal: c.sleepGoal,
     hsMode: c.hsMode, skill: c.osrsSkill, skill3: c.rs3Skill, swap: c.swap, rotMin: c.rotMin, chat: c.chat, units: c.units };
 }
 
@@ -382,7 +382,6 @@ function configHtml(c) {
   h += '<div class="mini">HP orb = battery, Prayer orb = heart rate, Run orb = steps toward your goal, Special orb = sleep.</div></div>';
   // face
   h += '<div class="pane" id="fc">';
-  h += '<div class="lab">Clock</div>' + choice("clock", [["auto", "Watch setting"], ["24", "24-hour"], ["12", "12-hour"]]);
   h += '<div class="lab">Chatbox</div>' + choice("chat", [["true", "Messages"], ["false", "Date only"]]);
   h += "</div>";
   h += '<div class="foot"><button type="button" id="save">Save</button></div>';

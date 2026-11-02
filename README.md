@@ -94,7 +94,7 @@ Open the Pebble app, find **Gielinor HUD** under your watchfaces and tap **Setti
   skill; what the panel shows; how the two games share it
 - **Weather:** phone GPS or a typed city, Celsius or Fahrenheit, how often to refresh
 - **Health:** daily step goal, sleep goal
-- **Face:** 12/24-hour clock, chatbox on or off
+- **Face:** chatbox on or off (the clock follows your watch's 12/24-hour setting)
 
 <br clear="right">
 

@@ -10,7 +10,7 @@
 # Output: tools/emu/out/<name>.png (raw) and docs/screenshots/<name>.png (normalised).
 set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EMU="${EMU:-$REPO/../../tools/emu}"          # shared TechnoidPebble emulator scripts
+EMU="${EMU:-$REPO/tools/emu}"                # emulator driver: tools/emu/emu.sh + capture.sh
 PKJS="$REPO/src/pkjs/index.js"; MAINJS="$REPO/src/embeddedjs/main.js"
 OUT="$REPO/tools/emu/out"; DOCS="$REPO/docs/screenshots"
 mkdir -p "$OUT" "$DOCS"; cd "$REPO"

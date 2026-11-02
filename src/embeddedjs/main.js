@@ -216,7 +216,7 @@ function levelCol(f) { return f >= 0.75 ? C.green : f >= 0.5 ? C.yellow : f >= 0
 
 // ---------------------------------------------------------------- data
 // skill = the Old School pick, skill3 = the RuneScape 3 pick; swap = how two games share the panel
-const cfg = { hour12: null, stepGoal: 8000, sleepGoal: 8, units: "C", hsMode: "pick", skill: 18, skill3: 18, swap: "min", rotMin: 5, chat: true };
+const cfg = { stepGoal: 8000, sleepGoal: 8, units: "C", hsMode: "pick", skill: 18, skill3: 18, swap: "min", rotMin: 5, chat: true };
 // DEMO_DATA seeds the panels for emulator renders; real phone DATA replaces it as it arrives.
 const DEMO_DATA = {
   v: 2, at: 0,
@@ -259,7 +259,9 @@ const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n) => (n < 10 ? "0" + n : "" + n);
-function hour12() { if (cfg.hour12 !== null) return cfg.hour12; try { return !!watch.hour12; } catch (e) { return false; } }
+// Always the watch's own 12/24-hour setting: the C start frame can only read that one, and the
+// two must agree or the clock would change format as the face starts.
+function hour12() { try { return !!watch.hour12; } catch (e) { return false; } }
 function kfmt(n) {                                     // 4012345 -> 4.01M, 412000 -> 412k
   if (n >= 1e7) return Math.floor(n / 1e6) + "M";
   if (n >= 1e6) return (Math.floor(n / 1e4) / 100) + "M";
@@ -269,18 +271,36 @@ function kfmt(n) {                                     // 4012345 -> 4.01M, 4120
 let btOk = true; try { btOk = !!watch.connected.app; } catch (e) {}
 
 // ---------------------------------------------------------------- the face
-function drawFace(port) {
-  port.fillColor(C.bg, 0, 0, W, H);
-
-  // ---- clock viewport (left) ----
+function drawClock(port, d) {
   panel(port, 0, 0, 134, 92);
   well(port, 5, 5, 124, 82);
-  const d = new Date();
   let hh = d.getHours();
   if (hour12()) { hh = hh % 12; if (hh === 0) hh = 12; }
   const clock = (hour12() ? "" + hh : pad(hh)) + ":" + pad(d.getMinutes());
   txt(port, clock, "c", C.yellow, 67, 14, "c");
   txt(port, DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()], "m", C.orange, 67, 58, "c");
+}
+const ORB_GLYPHS = ["heart", "pray", "boot", "moon"];
+// The still parts of the face, exactly as the C start frame paints them (src/c/mdbl.c): shown
+// until the saved data is restored, so the hand-over from C changes nothing on screen.
+function drawStill(port) {
+  port.fillColor(C.bg, 0, 0, W, H);
+  drawClock(port, new Date());
+  panel(port, 134, 0, 66, 92);
+  for (let i = 0; i < 4; i++) orb(port, 137, 2 + 22 * i, 0, C.grey, C.grey, ORB_GLYPHS[i], "", C.grey);
+  panel(port, 0, 92, W, 48);
+  panel(port, 0, 140, W, 52);
+  port.fillColor(C.parchLo, 0, 192, W, H - 192);
+  port.fillColor(C.parch, 2, 194, W - 4, H - 196);
+  txtFlat(port, "Gielinor: ", "n", C.inkBlue, 6, 198, "l");
+}
+
+function drawFace(port) {
+  port.fillColor(C.bg, 0, 0, W, H);
+
+  // ---- clock viewport (left) ----
+  const d = new Date();
+  drawClock(port, d);
 
   // ---- orbs (right) ----
   panel(port, 134, 0, 66, 92);
@@ -436,13 +456,12 @@ function wrap(port, s, maxW, indent) {
   return out;
 }
 
-// false until the saved settings + data are restored: a frame painted before that showed the
-// placeholders ("Fetching weather...") for a moment on every launch
+// false until the saved settings + data are restored. Before that the face shows only its still
+// parts (the C start frame's picture), not placeholders like "Fetching weather..." or a blank.
 let booted = false;
 class FaceBehavior extends Behavior {
   onDraw(port) {
-    if (!booted) { port.fillColor(C.bg, 0, 0, W, H); return; }
-    try { drawFace(port); } catch (e) { console.log("draw err " + e); }
+    try { if (booted) drawFace(port); else drawStill(port); } catch (e) { console.log("draw err " + e); }
   }
 }
 

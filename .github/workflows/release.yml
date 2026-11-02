@@ -31,6 +31,9 @@ jobs:
           yes | pebble sdk install latest || true
           pebble --version
 
+      - name: Check the start frame's glyphs match the fonts
+        run: uv run --with pillow python3 tools/gen_startframe.py --check
+
       - name: Build
         run: pebble build
 
