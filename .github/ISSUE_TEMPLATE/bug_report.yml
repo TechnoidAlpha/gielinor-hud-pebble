@@ -1,0 +1,30 @@
+name: Bug report
+description: Something on the face is wrong, missing or crashing
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Face version
+      description: Shown at the top of the settings page, e.g. v26.11.1
+    validations:
+      required: true
+  - type: dropdown
+    id: phone
+    attributes:
+      label: Phone
+      options: [Android, iPhone]
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Watch firmware
+      description: Pebble app > Settings > About, e.g. 4.33.2
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you expected, what you saw instead. A photo of the watch helps a lot.
+    validations:
+      required: true

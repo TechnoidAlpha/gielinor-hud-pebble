@@ -1,0 +1,20 @@
+{
+  "name": "GielinorHUD",
+  "author": "Technoid",
+  "version": "26.11.1",
+  "keywords": ["pebble-app", "watchface", "pixel", "rpg", "weather", "health"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Gielinor HUD",
+    "uuid": "cdfc8e40-2ca8-4ead-8731-524a9db57deb",
+    "projectType": "moddable",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "capabilities": ["configurable", "location", "health"],
+    "targetPlatforms": ["emery"],
+    "watchapp": { "watchface": true },
+    "messageKeys": ["DATA", "CFG", "RDY"],
+    "resources": { "media": [] }
+  }
+}

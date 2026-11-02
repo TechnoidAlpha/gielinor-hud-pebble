@@ -1,0 +1,5 @@
+build/
+*.pbw
+.lock-waf*
+node_modules/
+tools/emu/out/
