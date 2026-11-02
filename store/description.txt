@@ -1,0 +1,11 @@
+Your day as an Old School RuneScape-style game screen, made for the Pebble Time 2.
+
+- Big pixel clock and date
+- Four status orbs: battery, heart rate, steps and sleep, or choose active minutes, distance or calories
+- Live weather: temperature, today's high and low, and the chance of rain or snow
+- Your real hiscores for Old School RuneScape or RuneScape 3: one skill, a different skill every few minutes, the skill closest to a level-up, or XP gained today
+- A chatbox with rain alerts, steps left to your goal and XP to your next level
+
+Set everything up in Settings, with a live preview of the face. No accounts, no API keys, no ads. All art and fonts are original.
+
+A free, unofficial fan project, not affiliated with Jagex. Source code and privacy: https://github.com/TechnoidAlpha/gielinor-hud-pebble
