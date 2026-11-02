@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""banner.py - the 720x320 appstore banner (and README header art) from real screenshots.
+"""banner.py - the 720x320 appstore banner and the 1280x640 GitHub social preview, from real
+screenshots.
 
 Text is drawn with the face's own pixel glyphs (tools/genfont.py) at any scale, with the same
 one-art-pixel black drop shadow the watch uses. Screenshots are pasted unframed at 1:1 so
 the pixels stay true.
 
-Run: python3 tools/banner.py   ->  docs/banner.png
+Run: python3 tools/banner.py   ->  docs/banner.png, docs/social.png
 """
 import os, sys
 from PIL import Image, ImageDraw
@@ -42,28 +43,34 @@ def stone(img, x, y, w, h):
     d.rectangle([x + 2, y + 2, x + w - 2, y + h - 2], fill=(85, 85, 85))
     d.rectangle([x + 2, y + 2, x + w - 3, y + h - 3], fill=(85, 85, 0))
 
-def main():
-    W, H = 720, 320
+def draw(W, H, gap, tx):
     img = Image.new("RGB", (W, H), (28, 24, 18))
     stone(img, 0, 0, W, H)
     d = ImageDraw.Draw(img)
     d.rectangle([8, 8, W - 9, H - 9], fill=(28, 24, 18))
-    # three real screenshots, 1:1, on the right
-    names = ["hero", "sunny", "today"]
+    # two real screenshots, 1:1, on the right
+    names = ["hero", "sunny"]
     shots = [Image.open(os.path.join(SHOTS, n + ".png")).convert("RGB") for n in names if os.path.exists(os.path.join(SHOTS, n + ".png"))]
-    for i, s in enumerate(shots[:2]):                      # side by side, 1:1, unframed
-        sx, sy = W - 24 - 200 - (1 - i) * 216, 46
+    for i, s in enumerate(shots):                          # side by side, 1:1, unframed
+        sx, sy = W - gap - 200 - (1 - i) * 216, 46
         d.rectangle([sx - 3, sy - 3, sx + 202, sy + 230], fill=(0, 0, 0))
         img.paste(s, (sx, sy))
     # title block on the left
-    text(img, "Gielinor", 30, 62, 4, (255, 255, 0))
-    text(img, "HUD", 30, 62 + 44, 4, (255, 170, 0))
-    text(img, "Orbs, weather", 32, 176, 2, (255, 255, 255))
-    text(img, "and your", 32, 198, 2, (255, 255, 255))
-    text(img, "hiscores", 32, 220, 2, (255, 255, 255))
-    text(img, "Pebble Time 2", 32, 252, 2, (0, 255, 255))
-    out = os.path.join(ROOT, "docs", "banner.png")
-    img.save(out); print(out)
+    text(img, "Gielinor", tx, 62, 4, (255, 255, 0))
+    text(img, "HUD", tx, 62 + 44, 4, (255, 170, 0))
+    text(img, "Orbs, weather", tx + 2, 176, 2, (255, 255, 255))
+    text(img, "and your", tx + 2, 198, 2, (255, 255, 255))
+    text(img, "hiscores", tx + 2, 220, 2, (255, 255, 255))
+    text(img, "Pebble Time 2", tx + 2, 252, 2, (0, 255, 255))
+    return img
+
+def main():
+    out = os.path.join(ROOT, "docs", "banner.png")          # appstore banner, 720x320
+    draw(720, 320, 24, 30).save(out); print(out)
+    # GitHub social preview: 2:1, drawn at 640x320 then doubled so the pixels stay square
+    img = draw(640, 320, 26, 36)
+    out = os.path.join(ROOT, "docs", "social.png")
+    img.resize((1280, 640), Image.NEAREST).save(out); print(out)
 
 if __name__ == "__main__":
     main()
