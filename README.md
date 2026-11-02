@@ -6,6 +6,7 @@
 </p>
 
 <p align="center">
+  <a href="https://apps.repebble.com/b23f973d0f0141e9b99f114a"><img src="https://img.shields.io/badge/Pebble%20appstore-get%20it-ffff00?labelColor=3e3529" alt="Get it on the Pebble appstore"></a>
   <a href="https://github.com/TechnoidAlpha/gielinor-hud-pebble/releases/latest"><img src="https://img.shields.io/github/v/release/TechnoidAlpha/gielinor-hud-pebble?label=download&color=ffff00&labelColor=3e3529" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/watch-Pebble%20Time%202-ff981f?labelColor=3e3529" alt="Pebble Time 2">
   <img src="https://img.shields.io/badge/price-free-00aa00?labelColor=3e3529" alt="Free">
@@ -28,7 +29,12 @@
 
 ## Install
 
-Works with the Pebble app on **iPhone and Android**.
+**[Get Gielinor HUD on the Pebble appstore](https://apps.repebble.com/b23f973d0f0141e9b99f114a)**
+(iPhone and Android).
+
+Then, in the Pebble app, open the face's **Settings** and enter your character name.
+
+**Or install the file yourself:**
 
 1. On your phone, download `GielinorHUD-<version>.pbw` from the
    [latest release](https://github.com/TechnoidAlpha/gielinor-hud-pebble/releases/latest).
@@ -37,10 +43,6 @@ Works with the Pebble app on **iPhone and Android**.
      **Pebble**.
    - **Android:** tap the download, or open it from a file manager. If the Pebble app isn't
      offered, try [Rebble's Sideload Helper](https://help.rebble.io/sideloading/).
-3. In the Pebble app, open the face's **Settings** and enter your character name.
-
-A Pebble appstore listing is coming soon.
-<!-- STORE: add the appstore link here once the listing is live -->
 
 ## Features
 

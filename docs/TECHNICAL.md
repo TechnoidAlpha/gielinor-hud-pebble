@@ -10,7 +10,11 @@ pebble build                          # Pebble SDK 4.33+, emery
 pebble install --phone <phone-ip>     # developer connection enabled in the Pebble app
 ```
 
-Releases are built by `.github/workflows/release.yml` when a `v*` tag is pushed.
+Releases are built by `.github/workflows/release.yml` when a `v*` tag is pushed. Then upload that
+release's `.pbw` as a **New Release** of the
+[appstore listing](https://apps.repebble.com/b23f973d0f0141e9b99f114a) in the
+[developer dashboard](https://developer.repebble.com/dashboard). The appstore needs a version it
+hasn't seen before, which the tag check already ensures.
 
 - `python3 tools/genfont.py` regenerates the pixel-font atlases after a glyph edit. Then run
   `python3 tools/gen_startframe.py` so the C start frame's glyphs follow (CI checks this).
