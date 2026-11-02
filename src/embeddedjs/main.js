@@ -254,9 +254,10 @@ const DEMO_DATA = {
        l: [92, 88, 95, 93, 90, 77, 94, 85, 81, 82, 86, 80, 74, 70, 77, 72, 71, 75, 87, 79, 66, 78, 70, 41],
        g: [0, 0, 0, 12500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41200, 0, 0, 0, 0, 0] }],
 };
-// sample progress: % through each level (f) and xp left (r), as the phone would send them
+// sample progress: % through each level (f) and xp left (r), as the phone would send them;
+// r follows the game's level curve (xp from lv to lv+1 = floor(lv + 300 * 2^(lv/7)) / 4)
 DEMO_DATA.hs[0].f = DEMO_DATA.hs[0].l.map((lv, k) => (k * 37 + 11) % 97);
-DEMO_DATA.hs[0].r = DEMO_DATA.hs[0].l.map((lv, k) => Math.round((100 - DEMO_DATA.hs[0].f[k]) * lv * lv * 7));
+DEMO_DATA.hs[0].r = DEMO_DATA.hs[0].l.map((lv, k) => Math.round((100 - DEMO_DATA.hs[0].f[k]) / 100 * Math.floor(lv + 300 * Math.pow(2, lv / 7)) / 4));
 let data = DEMO ? DEMO_DATA : { v: 2, at: 0, hs: [] };   // v2: hs = one hiscores block per game
 
 let battery = null;
