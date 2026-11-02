@@ -16,7 +16,8 @@ Releases are built by `.github/workflows/release.yml` when a `v*` tag is pushed.
   `python3 tools/gen_startframe.py` so the C start frame's glyphs follow (CI checks this).
 - `python3 tools/icon_sheet.py` redraws `docs/screenshots/icons.png`.
 - `tools/shots.sh` re-captures the README screenshots on the emulator. It patches `DEMO`
-  (watch) and `MOCK` (phone) per variant and restores them from git afterwards.
+  (watch) and `MOCK` (phone) per variant and restores them from git afterwards. Then
+  `python3 tools/demo_gif.py` and `python3 tools/banner.py` rebuild the demo and banner from them.
 - `tools/startframe_diff.sh` proves the start frame hands over invisibly (below).
 - `python3 tools/gen_settings.py` rebuilds the settings page after editing
   `src/settings/settings.html`, the drawing code or a font (CI checks this).

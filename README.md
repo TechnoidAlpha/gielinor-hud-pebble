@@ -87,8 +87,6 @@ Necromancy.
 
 ## Settings
 
-<img src="docs/screenshots/settings-hiscores.png" width="260" align="right" alt="Settings page">
-
 Open the Pebble app, find **Gielinor HUD** under your watchfaces and tap **Settings**. A live
 preview of the face sits at the top and shows each change as you make it.
 
@@ -101,7 +99,16 @@ preview of the face sits at the top and shows each change as you make it.
 
 The clock follows your watch's 12/24-hour setting.
 
-<br clear="right">
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/settings-hiscores.png" width="300" alt="Hiscores tab: game, character, account type and what the panel shows"><br><b>Hiscores</b>: game, character and panel</td>
+    <td align="center" width="50%"><img src="docs/screenshots/settings-skills.png" width="300" alt="Skill picker laid out like the skills tab, with the two-games options"><br><b>Skill picker</b>, laid out like the skills tab</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/settings-orbs.png" width="300" alt="Orbs tab: what each orb shows, and daily goals"><br><b>Orbs</b>: what each one shows, and your goals</td>
+    <td align="center"><img src="docs/screenshots/settings-chatbox.png" width="300" alt="Chatbox tab: which messages appear"><br><b>Chatbox</b>: which messages appear</td>
+  </tr>
+</table>
 
 ## FAQ
 
@@ -154,8 +161,9 @@ screenshots, sounds or logos.
   every pixel.
 - **Fonts:** the pixel fonts are drawn letter by letter as text in
   [`tools/genfont.py`](tools/genfont.py), which builds them.
-- **Pictures in this README:** screenshots of the face running in the Pebble emulator, and a
-  banner put together from those screenshots by [`tools/banner.py`](tools/banner.py).
+- **Pictures in this README:** screenshots of the face running in the Pebble emulator and of
+  its own settings page, plus a banner and demo put together from those screenshots by
+  [`tools/banner.py`](tools/banner.py) and [`tools/demo_gif.py`](tools/demo_gif.py).
 - **Layout:** the orbs, stone panels and chatbox are a tribute to the game's interface, redrawn
   for a 200×228 watch screen.
 - **Your stats:** fetched live from Jagex's public hiscores. None of their data ships with the
