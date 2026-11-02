@@ -28,38 +28,45 @@
 
 ## Install
 
-**Pebble appstore (iPhone and Android):** coming soon.
-<!-- STORE: replace the line above with the appstore link once the listing is live -->
-
-**Android, direct download:**
+Works with the Pebble app on **iPhone and Android**.
 
 1. On your phone, download `GielinorHUD-<version>.pbw` from the
    [latest release](https://github.com/TechnoidAlpha/gielinor-hud-pebble/releases/latest).
-2. Open the file. It opens in the Pebble app, which installs it to your watch.
+2. Open the file and choose the Pebble app. It installs the face to your watch.
+   - **iPhone:** tap the download in Safari (or find it in the Files app), then share it to
+     **Pebble**.
+   - **Android:** tap the download, or open it from a file manager. If the Pebble app isn't
+     offered, try [Rebble's Sideload Helper](https://help.rebble.io/sideloading/).
 3. In the Pebble app, open the face's **Settings** and enter your character name.
 
-If Android doesn't offer to open the file with the Pebble app, open it from a file manager
-instead, or use [Rebble's Sideload Helper](https://help.rebble.io/sideloading/).
-
-**iPhone:** please use the appstore link once it is live. iOS can't open a downloaded `.pbw`
-reliably.
+A Pebble appstore listing is coming soon.
+<!-- STORE: add the appstore link here once the listing is live -->
 
 ## Features
 
-- **Big pixel clock** and date in an original OSRS-style font with drop shadows. Follows your
-  watch's 12/24-hour setting.
-- **Live weather**: temperature, conditions, today's high and low, and the chance of rain or
-  snow. Uses your phone's location or a city you choose.
-- **Your real hiscores**, for Old School RuneScape or RuneScape 3.
-- **Chatbox** with useful messages: when rain is due, steps left to your goal, XP to your next
-  level, a low-battery warning, and a notice if your phone disconnects.
-- **Gentle on battery**: it redraws once a minute, and your phone does all the fetching.
-- **No accounts, no API keys, no ads.**
+Top to bottom, the screen shows:
+
+| On screen | What it shows |
+|---|---|
+| **Clock** | The time and date in big pixel numbers with drop shadows, in an original OSRS-style font. Follows your watch's 12/24-hour setting. |
+| **Status orbs** | Four orbs, coloured green to red like the game's: battery, heart rate, steps and sleep, or the stats you choose. [More](#status-orbs) |
+| **Weather** | Temperature, conditions, today's high and low, and the chance of rain or snow, from your phone's location or a city you choose. |
+| **Hiscores** | Your real Old School RuneScape or RuneScape 3 stats, with an XP bar to your next level. Four ways to show them. [More](#hiscores-panel) |
+| **Chatbox** | Short messages that take turns: rain on the way, steps left, XP to your next level and more. [More](#chatbox) |
+
+And around it:
+
+- **Settings with a live preview** of the face, so you see every change as you make it.
+  [More](#settings)
+- **No blank screen.** Come back from Timeline, Health or an app and the frame, clock and date
+  are there at once.
+- **Gentle on battery.** It redraws once a minute, and your phone does all the fetching.
+- **No accounts, no API keys, no ads.** Free, with [original art](#original-work).
 
 ### Status orbs
 
-Coloured green to red, like the game's. These are the defaults: in Settings each orb can show
-battery, heart rate, steps, sleep, active minutes, distance or calories instead.
+These are the defaults. In Settings each orb can show battery, heart rate, steps, sleep, active
+minutes, distance or calories instead, each against its own daily goal.
 
 | Orb | Shows |
 |:---:|-------|
@@ -84,6 +91,19 @@ School in the panel and puts RuneScape 3 in the chatbox. Choose what it shows:
 
 Every mode has an XP bar to your next level. Every skill has its own icon, from Sailing to
 Necromancy.
+
+### Chatbox
+
+Choose which of these take turns, one each minute:
+
+- Rain or snow on the way, and roughly when
+- Steps left to your daily goal
+- XP to your next level
+- Charging, while the watch is on its charger
+- Welcome to Gielinor
+
+With none chosen, the chatbox shows the date. Warnings always come first: battery at 15% or
+less, phone disconnected, and Pebble Health turned off.
 
 ## Settings
 
