@@ -17,7 +17,10 @@ First public release.
   - RuneScape 3: Regular, Ironman and Hardcore, via RuneMetrics (levels to 120)
   - Track one game or both at once, each with its own character
 - Original pixel fonts and 45 original icons, covering every skill in both games
-- Settings page in the Pebble app, with tap-to-choose buttons and a skill grid instead of
-  drop-down menus
+- Choose what each orb shows: battery, heart rate, steps, sleep, active minutes, distance or
+  calories, each with its own goal
+- Choose which chatbox messages run, or show just the date
+- Settings page in the Pebble app with a live preview of the face and a skill picker laid out
+  like the in-game skills tab
 - Comes straight back when you return from Timeline, Health or an app: the frame, clock and
   date show at once, with no blank screen while it starts

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<!--
+  Gielinor HUD settings page. tools/gen_settings.py inlines this file, the face's drawing code
+  (main.js, between the "preview" markers) and the pixel fonts into src/pkjs/settings_page.js.
+  The phone fills in __CFG__, __DATA__ and __VERSION__ and opens it as a data: page.
+  No <select> anywhere: the Pebble app's webview opened native pickers at the top of the screen.
+-->
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Gielinor HUD</title>
+<style>
+:root{--bg:#1b1712;--stone:#3e3529;--stone2:#4a4031;--hi:#76664a;--lo:#16120d;--y:#ff0;--o:#ff981f;--txt:#f4e9c8;--dim:#a89a76;--parch:#efe0b0;--ink:#2b2013;--ink2:#7a4b12}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-padding:200px 0 90px}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.35 -apple-system,Roboto,sans-serif}
+button{font:inherit;color:inherit;touch-action:manipulation;cursor:pointer;border-radius:3px}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges}
+.stone,.seg button,.tiles button,.tabs button,.orbrow,.chips button,.toggles button,.step button{background:var(--stone);border:2px solid #000;box-shadow:inset 1px 1px 0 var(--hi),inset -1px -1px 0 var(--lo)}
+button.on.on{background:#5c4f39;color:var(--y);box-shadow:inset 1px 1px 0 var(--lo),inset -1px -1px 0 var(--hi)}
+.top{position:sticky;top:0;z-index:5;display:flex;gap:10px;padding:8px 10px;background:#2b2620;border-bottom:3px solid #000}
+.pv{flex:none;padding:3px;border-radius:3px;line-height:0;cursor:pointer}
+#face{width:150px;height:171px}
+.side{flex:1;display:flex;flex-direction:column;min-width:0}
+.title{font-weight:800;color:var(--y);text-shadow:2px 2px 0 #000;font-size:18px;line-height:1.15}
+.ver{color:var(--o);font-size:11px}
+.pvnote{color:var(--dim);font-size:11px;margin-top:4px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:auto}
+.tabs button{padding:9px 2px;font-weight:700;font-size:13px;color:#d4c49a}
+.pane{display:none;padding:2px 12px 18px}.pane.on{display:block}
+h2{margin:16px 0 7px;font-size:14px;color:var(--o);text-shadow:1px 1px 0 #000}
+h2 span{color:var(--y)}
+.seg{display:flex;gap:4px}.seg button{flex:1;min-width:0;padding:10px 2px;font-size:14px;color:#d4c49a}
+.card{background:var(--parch);color:var(--ink);border:2px solid #000;box-shadow:inset 0 0 0 2px #c9b37c;border-radius:3px;padding:8px 12px 12px;margin-top:8px}
+.card h3{margin:2px 0 6px;font-size:14px;color:var(--ink2)}
+.card label{display:block;font-size:12px;font-weight:700;color:var(--ink2);margin:8px 0 4px}
+.card .seg button{font-size:13px}
+input{width:100%;padding:10px;background:#fffbe9;color:var(--ink);border:2px solid #8a7444;border-radius:3px;font:inherit}
+.pane>input{background:#0f0d0a;color:var(--txt);border-color:#5a4f3c}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tiles button{text-align:left;padding:8px 10px;color:#d4c49a}.tiles b{display:block;font-size:14px}.tiles small{display:block;font-size:11px;color:var(--dim);margin-top:2px}
+.tiles .on small{color:#e8d9a8}
+.inl{margin-top:8px}
+.skills{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;background:#000;border:2px solid #000;border-radius:3px;padding:3px;margin-top:6px}
+.skills button{display:flex;align-items:center;gap:8px;padding:5px 7px;background:var(--stone2);border:0;box-shadow:inset 1px 1px 0 var(--hi),inset -1px -1px 0 var(--lo);color:var(--y);font-weight:700;font-size:14px;text-shadow:1px 1px 0 #000}
+.skills button.on{outline:2px solid var(--y);outline-offset:-2px}
+.skills canvas{width:20px;height:20px;flex:none}
+.orbrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:6px 10px;margin-top:6px;color:var(--txt)}
+.orbrow canvas{width:96px;height:33px;flex:none}
+.orbrow b{display:block;font-size:14px;color:var(--y)}.orbrow small{display:block;font-size:11px;color:var(--dim)}
+.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;margin:4px 0 4px 10px}
+.chips button{padding:9px 8px;text-align:left;font-size:13px;color:#d4c49a}
+.goal{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+.goal span{font-size:14px}
+.step{display:flex;align-items:center;gap:6px}
+.step button{width:42px;height:40px;font-size:20px;font-weight:700;color:var(--y);line-height:1}
+.step output{min-width:78px;text-align:center;font-weight:700;color:var(--y)}
+.toggles button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;margin-top:6px;color:#d4c49a}
+.toggles button:before{content:"";flex:none;width:18px;height:18px;border:2px solid #000;background:#0f0d0a;border-radius:2px}
+.toggles button.on:before{background:var(--y);box-shadow:inset 0 0 0 3px #0f0d0a}
+.note{color:var(--dim);font-size:12px;margin-top:8px}
+.foot{position:sticky;bottom:0;padding:10px 12px 14px;background:var(--bg);border-top:2px solid #000}
+#save{display:block;width:100%;padding:13px;background:var(--y);color:#000;font-weight:800;border:2px solid #000;font-size:16px}
+</style></head><body>
+<div class="top">
+  <div class="pv stone" id="pv"><canvas id="face" width="200" height="228"></canvas></div>
+  <div class="side">
+    <div class="title">Gielinor HUD</div>
+    <div class="ver">v__VERSION__ · fan-made, not affiliated with Jagex</div>
+    <div class="pvnote" id="pvnote"></div>
+    <div class="tabs"><button type="button" class="on" data-p="hs">Hiscores</button><button type="button" data-p="wx">Weather</button><button type="button" data-p="orb">Orbs</button><button type="button" data-p="chat">Chatbox</button></div>
+  </div>
+</div>
+
+<div class="pane on" id="hs">
+  <h2>Game</h2>
+  <div class="seg" data-k="game"><button type="button" data-v="osrs">Old School</button><button type="button" data-v="rs3">RuneScape 3</button><button type="button" data-v="both">Both</button></div>
+  <div class="card" id="osrsCard"><h3>Old School character</h3>
+    <input id="osrsName" maxlength="12" placeholder="Character name" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label>Account type</label>
+    <div class="seg" data-k="osrsAcct"><button type="button" data-v="main">Regular</button><button type="button" data-v="iron">Ironman</button><button type="button" data-v="hcim">Hardcore</button><button type="button" data-v="uim">Ultimate</button></div>
+  </div>
+  <div class="card" id="rs3Card"><h3>RuneScape 3 character</h3>
+    <input id="rs3Name" maxlength="12" placeholder="Character name" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label>Account type</label>
+    <div class="seg" data-k="rs3Acct"><button type="button" data-v="main">Regular</button><button type="button" data-v="iron">Ironman</button><button type="button" data-v="hcim">Hardcore</button></div>
+    <div class="note" style="color:#6b5a3a">Set your RuneMetrics profile to public in RuneScape.</div>
+  </div>
+
+  <h2>Panel shows</h2>
+  <div class="tiles" data-k="hsMode">
+    <button type="button" data-v="pick"><b>One skill</b><small>Your pick, plus total level</small></button>
+    <button type="button" data-v="rotate"><b>Rotate</b><small>A new skill every few minutes</small></button>
+    <button type="button" data-v="next"><b>Next level</b><small>The skill closest to levelling</small></button>
+    <button type="button" data-v="today"><b>XP today</b><small>What you've gained since midnight</small></button>
+  </div>
+  <div class="inl" id="rotA"><div class="seg" data-k="rotMin"><button type="button" data-v="1">1 min</button><button type="button" data-v="5">5 min</button><button type="button" data-v="15">15 min</button><button type="button" data-v="60">1 hour</button></div></div>
+
+  <div id="skillRow">
+    <h2>Skill: <span id="skName"></span></h2>
+    <div class="seg" data-k="skGame" id="skGame"><button type="button" data-v="osrs">Old School pick</button><button type="button" data-v="rs3">RS3 pick</button></div>
+    <div class="skills" id="skills"></div>
+  </div>
+
+  <div id="swapRow">
+    <h2>With both games</h2>
+    <div class="seg" data-k="swap"><button type="button" data-v="min">Swap each minute</button><button type="button" data-v="rot">At rotate speed</button><button type="button" data-v="chat">RS3 in chatbox</button></div>
+    <div class="inl" id="rotB"><div class="seg" data-k="rotMin"><button type="button" data-v="1">1 min</button><button type="button" data-v="5">5 min</button><button type="button" data-v="15">15 min</button><button type="button" data-v="60">1 hour</button></div></div>
+  </div>
+  <div class="note">Hiscores refresh every 3 hours and whenever you save.</div>
+</div>
+
+<div class="pane" id="wx">
+  <h2>Location</h2>
+  <div class="seg" data-k="loc"><button type="button" data-v="gps">Phone GPS</button><button type="button" data-v="city">A city I type</button></div>
+  <div class="inl" id="cityRow"><input id="city" placeholder="e.g. London"></div>
+  <h2>Units</h2>
+  <div class="seg" data-k="units"><button type="button" data-v="C">Celsius</button><button type="button" data-v="F">Fahrenheit</button></div>
+  <h2>Refresh every</h2>
+  <div class="seg" data-k="wxMin"><button type="button" data-v="15">15 min</button><button type="button" data-v="30">30 min</button><button type="button" data-v="60">1 hour</button></div>
+  <div class="note">Weather by Open-Meteo.com (CC BY 4.0).</div>
+</div>
+
+<div class="pane" id="orb">
+  <h2>What each orb shows</h2>
+  <div id="orbs"></div>
+  <h2>Goals</h2>
+  <div id="goals"></div>
+  <div class="note">Steps, sleep, activity, distance and calories need Pebble Health on in the Pebble app.</div>
+</div>
+
+<div class="pane" id="chat">
+  <h2>Chatbox messages</h2>
+  <div class="toggles">
+    <button type="button" data-cm="r">Rain or snow on the way</button>
+    <button type="button" data-cm="s">Steps left to your goal</button>
+    <button type="button" data-cm="x">XP to your next level</button>
+    <button type="button" data-cm="c">Charging</button>
+    <button type="button" data-cm="w">Welcome to Gielinor</button>
+  </div>
+  <div class="note">The chosen messages take turns each minute. With none on, the chatbox shows the date. Warnings (low battery, phone disconnected, Health off) always show.</div>
+</div>
+
+<div class="foot"><button type="button" id="save">Save</button></div>
+
+<script>
+"use strict";
+var S = __CFG__, PHONE = __DATA__;
+var FONTS = /*FONTS*/null;
+var RealDate = Date, offsetMin = 0;
+function FakeDate() { return new RealDate(RealDate.now() + offsetMin * 60000); }
+FakeDate.now = function () { return RealDate.now() + offsetMin * 60000; };
+
+// ---- the face's own drawing code (main.js), with the watch's sensors stubbed by sample values
+function makeFace(screen, Style, Battery, Health, watch, DEMO, Date) {
+/*FACE*/
+return { draw: drawFace, cfg: cfg, setData: function (d) { data = d; }, icon: icon, orb: orb, orbValue: orbValue,
+  DEMO_DATA: DEMO_DATA, SKILLS: SKILLS, skName: skName, skIcon: skIcon, ORB_LOOK: ORB_LOOK, C: C };
+}
+var SAMPLE_H = { "step count": 5120, "sleep seconds": 26700, "active seconds": 2040, "walked distance": 3800, "active calories": 312 };
+var face = makeFace({ width: 200, height: 228 }, function (o) { this.font = o.font; },
+  function () { this.sample = function () { return { percent: 87, charging: false }; }; },
+  { access: { available: 1, permission: 2 }, metric: { accessible: function () { return 3; },
+    query: function (o) { return SAMPLE_H[o.metric] || 0; }, get: function () { return 72; } } },
+  { hour12: false, connected: { app: true } }, false, FakeDate);
+
+// ---- a Port that draws on a canvas with the face's bitmap fonts
+var tints = {};
+function tinted(font, col) {
+  var key = font + col;
+  if (!tints[key]) {
+    var img = FONTS[font].im, c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    var x = c.getContext("2d");
+    x.drawImage(img, 0, 0); x.globalCompositeOperation = "source-in"; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height);
+    tints[key] = c;
+  }
+  return tints[key];
+}
+function Port(canvas) { this.x = canvas.getContext("2d"); }
+Port.prototype.fillColor = function (col, x, y, w, h) { this.x.fillStyle = col; this.x.fillRect(x, y, w, h); };
+Port.prototype.measureString = function (s, st) {
+  var g = FONTS[st.font].g, w = 0;
+  for (var i = 0; i < s.length; i++) { var c = g[s.charCodeAt(i)]; if (c) w += c[6]; }
+  return { width: w };
+};
+Port.prototype.drawString = function (s, st, col, x, y) {
+  var g = FONTS[st.font].g, a = tinted(st.font, col);
+  for (var i = 0; i < s.length; i++) {
+    var c = g[s.charCodeAt(i)];
+    if (!c) continue;
+    if (c[2] && c[3]) this.x.drawImage(a, c[0], c[1], c[2], c[3], x + c[4], y + c[5], c[2], c[3]);
+    x += c[6];
+  }
+};
+
+// ---- settings state
+var NAMES = { batt: "Battery", hr: "Heart rate", steps: "Steps", sleep: "Sleep", active: "Active minutes", dist: "Distance", cal: "Calories" };
+var SLOT = ["Hitpoints orb", "Prayer orb", "Run energy orb", "Special attack orb"];
+var GOALS = { steps: ["stepGoal", "Steps a day", 500, 1000, 100000, ""], sleep: ["sleepGoal", "Sleep", 0.5, 4, 12, " h"],
+  active: ["activeGoal", "Active minutes", 5, 5, 300, " min"], dist: ["distGoal", "Distance", 0.5, 0.5, 50, ""], cal: ["calGoal", "Active calories", 50, 50, 3000, " kcal"] };
+var skGame = "osrs", openOrb = -1, paused = false;
+function $(i) { return document.getElementById(i); }
+function all(q) { return document.querySelectorAll(q); }
+function show(i, on) { $(i).style.display = on ? "" : "none"; }
+function game() { return S.osrsOn && S.rs3On ? "both" : S.rs3On ? "rs3" : "osrs"; }
+function value(k) { return k === "game" ? game() : k === "skGame" ? skGame : String(S[k]); }
+
+function sampleBlock(gm, n) {
+  var b = JSON.parse(JSON.stringify(face.DEMO_DATA.hs[0])), len = gm === "rs3" ? 29 : 24;
+  for (var k = b.l.length; k < len; k++) { b.l.push(70 + k); b.r.push(90000 + k * 1000); b.f.push((k * 37 + 11) % 97); b.g.push(0); }
+  b.gm = gm; b.n = n || "Zezima";
+  return b;
+}
+// your real hiscores when the phone has them for this name, otherwise sample stats
+var usingSample = false;
+function block(gm) {
+  var name = S[gm + "Name"], hs = (PHONE && PHONE.hs) || [];
+  for (var i = 0; i < hs.length; i++) {
+    var b = hs[i];
+    if (b && b.gm === gm && !b.err && b.l && String(b.n).toLowerCase() === String(name).toLowerCase()) return b;
+  }
+  usingSample = true;
+  return sampleBlock(gm, name);
+}
+function previewData() {
+  usingSample = false;
+  var w = (PHONE && PHONE.w) || face.DEMO_DATA.w;
+  if (w.u && w.u !== S.units) {
+    var cv = S.units === "F" ? function (t) { return Math.round(t * 9 / 5 + 32); } : function (t) { return Math.round((t - 32) * 5 / 9); };
+    w = JSON.parse(JSON.stringify(w)); w.t = cv(w.t); w.hi = cv(w.hi); w.lo = cv(w.lo); w.u = S.units;
+  }
+  var d = { v: 2, at: 0, w: w, hs: [] };
+  if (S.osrsOn) d.hs.push(block("osrs"));
+  if (S.rs3On) d.hs.push(block("rs3"));
+  return d;
+}
+function faceCfg() {
+  var c = face.cfg;
+  c.stepGoal = S.stepGoal; c.sleepGoal = S.sleepGoal; c.activeGoal = S.activeGoal; c.distGoal = S.distGoal; c.calGoal = S.calGoal;
+  c.orbs = S.orbs; c.units = S.units; c.hsMode = S.hsMode; c.skill = S.osrsSkill; c.skill3 = S.rs3Skill;
+  c.swap = S.swap; c.rotMin = S.rotMin; c.cm = S.cm;
+}
+var facePort;
+function drawPreview() {
+  faceCfg();
+  face.setData(previewData());
+  face.draw(facePort);
+  $("pvnote").textContent = (usingSample ? "Sample stats until you save. " : "Your stats. ") + (paused ? "Paused: tap to run." : "Runs fast: tap to pause.");
+}
+
+// ---- small canvases: skill icons and orbs, drawn with the face's own code
+function iconCanvas(name, size, scale) {
+  var c = document.createElement("canvas"); c.width = size; c.height = size;
+  face.icon(new Port(c), name, 0, 0, scale);
+  return c;
+}
+function renderSkills() {
+  var gm = game() === "both" ? skGame : game(), b = block(gm), n = gm === "rs3" ? 29 : 24, sel = S[gm + "Skill"], box = $("skills");
+  box.textContent = "";
+  for (var k = 0; k < n; k++) {
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.setAttribute("data-s", k); btn.title = face.skName(b, k);
+    if (k === sel) btn.className = "on";
+    btn.appendChild(iconCanvas(face.skIcon(b, k), 20, 2));
+    btn.appendChild(document.createTextNode(b.l[k]));
+    box.appendChild(btn);
+  }
+  $("skName").textContent = face.skName(b, sel < n ? sel : 0);
+}
+function orbCanvas(i) {
+  var m = S.orbs[i], c = document.createElement("canvas"); c.width = 64; c.height = 22;
+  var p = new Port(c); p.fillColor("#555500", 0, 0, 64, 22);
+  var h = { steps: SAMPLE_H["step count"], hr: 72, sleep: SAMPLE_H["sleep seconds"], active: SAMPLE_H["active seconds"], dist: SAMPLE_H["walked distance"], cal: SAMPLE_H["active calories"], lock: "" };
+  var v = face.orbValue(m, { pct: 87, chg: false }, h);
+  var look = face.ORB_LOOK[i];
+  face.orb(p, 2, 0, v.f, look[0], look[1], look[2], v.l, v.c);
+  return c;
+}
+function renderOrbs() {
+  var box = $("orbs"); box.textContent = "";
+  for (var i = 0; i < 4; i++) {
+    var row = document.createElement("button");
+    row.type = "button"; row.className = "orbrow"; row.setAttribute("data-orb", i);
+    row.appendChild(orbCanvas(i));
+    var t = document.createElement("div");
+    t.innerHTML = "<b>" + NAMES[S.orbs[i]] + "</b><small>" + SLOT[i] + (openOrb === i ? " · choose below" : " · tap to change") + "</small>";
+    row.appendChild(t); box.appendChild(row);
+    if (openOrb === i) {
+      var ch = document.createElement("div"); ch.className = "chips";
+      for (var m in NAMES) ch.innerHTML += '<button type="button" data-m="' + m + '"' + (S.orbs[i] === m ? ' class="on"' : "") + ">" + NAMES[m] + "</button>";
+      box.appendChild(ch);
+    }
+  }
+}
+function renderGoals() {
+  var used = {}, box = $("goals"), html = "";
+  S.orbs.forEach(function (m) { used[m] = 1; });
+  if (S.cm.indexOf("s") >= 0) used.steps = 1;
+  for (var m in GOALS) {
+    if (!used[m]) continue;
+    var g = GOALS[m], unit = m === "dist" ? (S.units === "F" ? " mi" : " km") : g[5];
+    html += '<div class="goal"><span>' + g[1] + '</span><div class="step"><button type="button" data-goal="' + m + '" data-d="-1">−</button><output>' +
+      S[g[0]] + unit + '</output><button type="button" data-goal="' + m + '" data-d="1">+</button></div></div>';
+  }
+  box.innerHTML = html || '<div class="note">None of your orbs needs a goal.</div>';
+}
+
+function paint() {
+  var g = all("[data-k]");
+  for (var i = 0; i < g.length; i++) {
+    var v = value(g[i].getAttribute("data-k")), c = g[i].children;
+    for (var j = 0; j < c.length; j++) if (c[j].hasAttribute("data-v")) c[j].classList.toggle("on", c[j].getAttribute("data-v") === v);
+  }
+  var t = all("[data-cm]");
+  for (i = 0; i < t.length; i++) t[i].classList.toggle("on", S.cm.indexOf(t[i].getAttribute("data-cm")) >= 0);
+  var both = game() === "both";
+  show("osrsCard", S.osrsOn); show("rs3Card", S.rs3On);
+  show("rotA", S.hsMode === "rotate");
+  show("skillRow", S.hsMode === "pick"); show("skGame", both);
+  show("swapRow", both); show("rotB", both && S.swap === "rot" && S.hsMode !== "rotate");
+  show("cityRow", S.loc === "city");
+  renderSkills(); renderOrbs(); renderGoals(); drawPreview();
+}
+
+// Keep what you tapped where it is. Hiding a block below it (the skill grid, say) shortens the
+// page, and the browser then pulls the scroll back so the whole page jumps under your finger:
+// hold the page height while the change lands, then undo any drift. Re-drawn lists anchor on
+// their container, which survives the redraw.
+function keepPlace(b, change) {
+  var a = b.closest("#skills,#orbs,#goals") || b, y = a.getBoundingClientRect().top;
+  document.body.style.minHeight = document.documentElement.scrollHeight + "px";
+  change();
+  var d = a.getBoundingClientRect().top - y;
+  if (d) window.scrollBy(0, d);
+}
+document.addEventListener("click", function (e) {
+  var b = e.target.closest ? e.target.closest("button") : null;
+  if (!b) return;
+  var t = b.parentNode, k = t.getAttribute("data-k"), v = b.getAttribute("data-v"), i;
+  if (b.hasAttribute("data-p")) {
+    var tb = all(".tabs button");
+    for (i = 0; i < tb.length; i++) { tb[i].classList.remove("on"); $(tb[i].getAttribute("data-p")).classList.remove("on"); }
+    b.classList.add("on"); $(b.getAttribute("data-p")).classList.add("on");
+    document.body.style.minHeight = "";   // a fresh tab drops any height held for an earlier change
+    window.scrollTo(0, 0);
+    return;
+  }
+  keepPlace(b, function () { apply(b, t, k, v); });
+});
+function apply(b, t, k, v) {
+  var i;
+  if (k && v !== null) {
+    if (k === "game") { S.osrsOn = v !== "rs3"; S.rs3On = v !== "osrs"; skGame = v === "rs3" ? "rs3" : "osrs"; }
+    else if (k === "skGame") skGame = v;
+    else S[k] = typeof S[k] === "number" ? +v : v;
+  } else if (b.hasAttribute("data-s")) S[(game() === "both" ? skGame : game()) + "Skill"] = +b.getAttribute("data-s");
+  else if (b.hasAttribute("data-orb")) { i = +b.getAttribute("data-orb"); openOrb = openOrb === i ? -1 : i; }
+  else if (b.hasAttribute("data-m")) { S.orbs = S.orbs.slice(); S.orbs[openOrb] = b.getAttribute("data-m"); openOrb = -1; }
+  else if (b.hasAttribute("data-goal")) {
+    var g = GOALS[b.getAttribute("data-goal")], n = Math.round((S[g[0]] + g[2] * +b.getAttribute("data-d")) * 10) / 10;
+    S[g[0]] = Math.min(g[4], Math.max(g[3], n));
+  } else if (b.hasAttribute("data-cm")) {
+    var f = b.getAttribute("data-cm");
+    S.cm = S.cm.indexOf(f) >= 0 ? S.cm.replace(f, "") : S.cm + f;
+  } else return;
+  paint();
+}
+["osrsName", "rs3Name", "city"].forEach(function (id) {
+  $(id).value = S[id];
+  $(id).addEventListener("input", function () { S[id] = this.value; if (id !== "city") { renderSkills(); drawPreview(); } });
+});
+$("pv").addEventListener("click", function () { paused = !paused; drawPreview(); });
+$("save").addEventListener("click", function () {
+  var o = {}, k;
+  for (k in S) o[k] = S[k];
+  o.osrsName = String(S.osrsName).trim(); o.rs3Name = String(S.rs3Name).trim(); o.city = String(S.city).trim();
+  location.href = "pebblejs://close#" + encodeURIComponent(JSON.stringify(o));
+});
+
+// fonts first, then the first paint, then the preview clock runs a minute every 1.5 s
+var left = 0;
+for (var f in FONTS) {
+  left++;
+  FONTS[f].im = new Image();
+  FONTS[f].im.onload = function () { if (--left === 0) { facePort = new Port($("face")); paint(); } };
+  FONTS[f].im.src = FONTS[f].img;
+}
+setInterval(function () { if (!paused && facePort) { offsetMin++; drawPreview(); } }, 1500);
+</script>
+</body></html>

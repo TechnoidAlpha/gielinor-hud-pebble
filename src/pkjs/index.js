@@ -24,8 +24,11 @@ var DEFAULTS = {
   rs3On: false, rs3Name: "", rs3Acct: "main", rs3Skill: 18,
   swap: "min", hsMode: "pick", rotMin: 5,
   loc: "gps", city: "", units: "C", wxMin: 30,
-  stepGoal: 8000, sleepGoal: 8, chat: true,   // the clock follows the watch's 12/24-hour setting
-};
+  stepGoal: 8000, sleepGoal: 8, activeGoal: 30, distGoal: 5, calGoal: 400,
+  orbs: ["batt", "hr", "steps", "sleep"],   // what each orb shows, top to bottom
+  cm: "rsxcw",   // chatbox messages: r rain, s steps, x xp, c charging, w welcome; "" = the date only
+};   // (no clock option: the clock follows the watch's 12/24-hour setting)
+var ORB_METRICS = ["batt", "hr", "steps", "sleep", "active", "dist", "cal"];
 var SKILLS = ["Attack", "Defence", "Strength", "Hitpoints", "Ranged", "Prayer", "Magic", "Cooking",
   "Woodcutting", "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblore",
   "Agility", "Thieving", "Slayer", "Farming", "Runecraft", "Hunter", "Construction", "Sailing"];
@@ -45,13 +48,16 @@ function getCfg() {
     s[g + "On"] = true; s[g + "Name"] = s.rsn; s[g + "Acct"] = s.acct || "main"; s[g + "Skill"] = s.skill;
     if (g === "rs3") s.osrsOn = false;
   }
+  if (s.chat === false && !("cm" in s)) s.cm = "";   // the old chatbox on/off switch
+  if (!s.osrsOn && !s.rs3On && ("osrsOn" in s)) s.osrsOn = true;   // one game is always on now
   for (var k in DEFAULTS) c[k] = (k in s && s[k] !== undefined) ? s[k] : DEFAULTS[k];
   return c;
 }
 function setCfg(c) { localStorage.setItem("cfg", JSON.stringify(c)); }
 function cfgForWatch(c) {
-  return { stepGoal: c.stepGoal, sleepGoal: c.sleepGoal,
-    hsMode: c.hsMode, skill: c.osrsSkill, skill3: c.rs3Skill, swap: c.swap, rotMin: c.rotMin, chat: c.chat, units: c.units };
+  return { stepGoal: c.stepGoal, sleepGoal: c.sleepGoal, activeGoal: c.activeGoal, distGoal: c.distGoal, calGoal: c.calGoal,
+    orbs: c.orbs, cm: c.cm,
+    hsMode: c.hsMode, skill: c.osrsSkill, skill3: c.rs3Skill, swap: c.swap, rotMin: c.rotMin, units: c.units };
 }
 
 function get(url, ok, fail) {
@@ -302,114 +308,14 @@ Pebble.addEventListener("appmessage", function (ev) {
 });
 
 // ---------------------------------------------------------------- settings page
-// Every choice is a row of buttons in the page, not a <select>: the webview's own pop-up opened
-// at the top of the screen and then jumped to the field. The skill list (24 or 29 names) opens as
-// a grid in place under its button. Anything that appears or hides sits below the control that
-// changes it, so nothing above your finger moves.
-function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
-// A row of buttons for setting k. opts = [[value, label], ...]; cls "seg" = side by side, "list" =
-// stacked; after[value] = html placed straight after that option's button.
-function choice(k, opts, cls, after) {
-  var b = '<div class="' + (cls || "seg") + '" data-k="' + k + '">';
-  for (var i = 0; i < opts.length; i++) {
-    b += '<button type="button" data-v="' + opts[i][0] + '">' + opts[i][1] + "</button>";
-    if (after && after[opts[i][0]]) b += after[opts[i][0]];
-  }
-  return b + "</div>";
-}
+// The page is src/settings/settings.html. tools/gen_settings.py builds it into settings_page.js
+// with the face's drawing code (the live preview) and fonts; this fills in the settings and data.
+var PAGE = require("./settings_page.js");
+function json(v) { return JSON.stringify(v).replace(/</g, "\u003c"); }   // safe inside <script>
 function configHtml(c) {
-  var ROT = [[1, "1 min"], [5, "5 min"], [15, "15 min"], [60, "1 hour"]];
-  var h = '<!DOCTYPE html><html><head><meta charset="utf-8">';
-  h += '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">';
-  h += "<style>";
-  h += "html{scroll-padding:60px 0 90px}";   // scrolling a skill grid into view clears the sticky tabs and Save bar
-  h += "*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}body{margin:0;background:#1b1712;color:#f4e9c8;font:15px/1.35 -apple-system,Roboto,sans-serif}";
-  h += "header{background:#3e3529;border-bottom:3px solid #000;padding:14px 16px}h1{margin:0;font-size:19px;color:#ff0;text-shadow:2px 2px 0 #000}.sub{color:#ff981f;font-size:12px}";
-  h += "button{font:inherit;color:inherit;touch-action:manipulation;cursor:pointer}";
-  h += ".tabs{display:flex;position:sticky;top:0;z-index:2;background:#2b2620;border-bottom:2px solid #000}";
-  h += ".tabs button{flex:1;padding:11px 4px;background:none;border:0;border-right:1px solid #000;color:#c8b98f;font-weight:600}.tabs button.on{background:#5a4f3c;color:#ff0}";
-  h += ".pane{display:none;padding:2px 16px 16px}.pane.on{display:block}label,.lab{display:block;margin:14px 0 6px;color:#ff981f;font-size:13px;font-weight:600}";
-  h += "input{width:100%;padding:10px;background:#0f0d0a;color:#f4e9c8;border:1px solid #5a4f3c;border-radius:4px;font:inherit}";
-  h += ".seg{display:flex;border:2px solid #000;border-radius:4px;overflow:hidden}.seg button{flex:1;min-width:0;padding:10px 2px;background:#0f0d0a;border:0;border-left:1px solid #3e3529;color:#c8b98f;font-size:14px}.seg button:first-child{border-left:0}";
-  h += ".list>button{display:block;width:100%;text-align:left;padding:10px 12px;margin-top:4px;background:#0f0d0a;border:2px solid #000;border-radius:4px;color:#c8b98f}";
-  h += ".seg button.on,.list>button.on{background:#5a4f3c;color:#ff0;font-weight:600}.list>button.on{box-shadow:inset 5px 0 0 #ff981f}";
-  h += ".inl{margin:6px 0 8px 14px}.inl .lab{margin:0 0 4px}";
-  h += ".game{background:#2b2620;border:1px solid #000;border-radius:4px;padding:2px 12px 12px;margin:16px 0 0}";
-  h += ".tog{display:flex;align-items:center;gap:10px;color:#ff0;font-size:15px;margin:10px 0 2px}.tog input{width:22px;height:22px;margin:0;accent-color:#ff0}";
-  h += ".pick{display:block;width:100%;text-align:left;padding:10px;background:#0f0d0a;border:1px solid #5a4f3c;border-radius:4px}.pick:after{content:'';float:right;margin-top:7px;border:6px solid transparent;border-top-color:#ff981f}";
-  h += ".grid{display:none;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px}.grid.open{display:grid}";
-  h += ".grid button{padding:9px 2px;background:#0f0d0a;border:1px solid #3e3529;border-radius:3px;color:#c8b98f;font-size:12px;overflow-wrap:anywhere}.grid button.on{background:#5a4f3c;color:#ff0}";
-  h += ".mini{color:#9c8f6e;font-size:12px;margin-top:8px}";
-  h += ".foot{position:sticky;bottom:0;padding:10px 16px 14px;background:#1b1712;border-top:2px solid #000}";
-  h += "#save{display:block;width:100%;padding:13px;background:#ff0;color:#000;font-weight:700;border:2px solid #000;border-radius:4px;font-size:16px}";
-  h += "</style></head><body>";
-  h += '<header><h1>Gielinor HUD</h1><div class="sub">v' + APP_VERSION + " - fan-made, not affiliated with Jagex</div></header>";
-  h += '<div class="tabs"><button type="button" class="on" data-p="hs">Hiscores</button><button type="button" data-p="wx">Weather</button>' +
-    '<button type="button" data-p="hl">Health</button><button type="button" data-p="fc">Face</button></div>';
-  // hiscores: what the panel shows, a card per game, then how two games share the panel
-  function gameBlock(g, title, accts, on, name, note) {
-    var b = '<div class="game"><label class="tog"><input type="checkbox" id="' + g + 'On"' + (on ? " checked" : "") + "> " + title + "</label>";
-    b += '<div id="' + g + 'Box"><label for="' + g + 'Name">Character name</label><input id="' + g + 'Name" maxlength="12" value="' + esc(name) +
-      '" placeholder="e.g. Zezima" autocapitalize="off" autocorrect="off" spellcheck="false">';
-    b += '<div class="lab">Account type</div>' + choice(g + "Acct", accts);
-    b += '<div class="skRow"><div class="lab">Skill</div><button type="button" class="pick" data-g="' + g + '"></button><div class="grid" id="' + g + 'Grid"></div></div>';
-    if (note) b += '<div class="mini">' + note + "</div>";
-    return b + "</div></div>";
-  }
-  var AC = [["main", "Regular"], ["iron", "Ironman"], ["hcim", "Hardcore"]];
-  h += '<div class="pane on" id="hs">';
-  h += '<div class="lab">Panel shows</div>' + choice("hsMode", [["pick", "One skill and your total level"], ["rotate", "Rotate through skills"],
-    ["next", "Skill closest to a level-up"], ["today", "XP gained today"]], "list",
-    { rotate: '<div class="inl" id="rotA"><div class="lab">Every</div>' + choice("rotMin", ROT) + "</div>" });
-  h += gameBlock("osrs", "Old School RuneScape", AC.concat([["uim", "Ultimate"]]), c.osrsOn, c.osrsName, "");
-  h += gameBlock("rs3", "RuneScape 3", AC, c.rs3On, c.rs3Name, "Reads your RuneMetrics profile (set it to public in RuneScape), then the hiscores.");
-  h += '<div id="swapRow"><div class="lab">With both games on</div>' + choice("swap", [["min", "Switch game every minute"],
-    ["rot", "Switch game at the rotate speed"], ["chat", "Old School in the panel, RS3 in the chatbox"]], "list",
-    { rot: '<div class="inl" id="rotB"><div class="lab">Every</div>' + choice("rotMin", ROT) + "</div>" }) + "</div>";
-  h += '<div class="mini">Hiscores refresh every 3 hours. "XP gained today" counts from your first refresh after midnight.</div>';
-  h += "</div>";
-  // weather
-  h += '<div class="pane" id="wx">';
-  h += '<div class="lab">Location</div>' + choice("loc", [["gps", "Phone GPS"], ["city", "A city I type"]]);
-  h += '<div id="cityRow"><label for="city">City</label><input id="city" value="' + esc(c.city) + '" placeholder="e.g. Varrock... or London"></div>';
-  h += '<div class="lab">Units</div>' + choice("units", [["C", "Celsius"], ["F", "Fahrenheit"]]);
-  h += '<div class="lab">Refresh every</div>' + choice("wxMin", [[15, "15 min"], [30, "30 min"], [60, "1 hour"]]);
-  h += '<div class="mini">Weather by Open-Meteo.com (CC BY 4.0).</div></div>';
-  // health
-  h += '<div class="pane" id="hl">';
-  h += '<label for="stepGoal">Daily step goal (Run orb)</label><input id="stepGoal" type="number" inputmode="numeric" min="1000" step="500" value="' + c.stepGoal + '">';
-  h += '<label for="sleepGoal">Sleep goal in hours (Special orb)</label><input id="sleepGoal" type="number" inputmode="decimal" min="4" max="12" step="0.5" value="' + c.sleepGoal + '">';
-  h += '<div class="mini">HP orb = battery, Prayer orb = heart rate, Run orb = steps toward your goal, Special orb = sleep.</div></div>';
-  // face
-  h += '<div class="pane" id="fc">';
-  h += '<div class="lab">Chatbox</div>' + choice("chat", [["true", "Messages"], ["false", "Date only"]]);
-  h += "</div>";
-  h += '<div class="foot"><button type="button" id="save">Save</button></div>';
-  // S = the settings being edited; buttons change it, Save sends it back with the typed fields
-  h += "<script>";
-  h += "var S=" + JSON.stringify(c).replace(/</g, "\\u003c") + ",SK={osrs:" + JSON.stringify(SKILLS) + ",rs3:" + JSON.stringify(RS3_SKILLS) + "};";
-  h += "function $(i){return document.getElementById(i)}function all(q){return document.querySelectorAll(q)}function show(i,on){$(i).style.display=on?'':'none'}";
-  h += "function paint(){var g=all('[data-k]'),i,j;for(i=0;i<g.length;i++){var k=g[i].getAttribute('data-k'),c=g[i].children;";
-  h += "for(j=0;j<c.length;j++){var v=c[j].getAttribute('data-v');if(v!==null)c[j].className=v===String(S[k])?'on':''}}";
-  h += "var p=all('.pick');for(i=0;i<p.length;i++){var n=p[i].getAttribute('data-g');p[i].textContent=SK[n][S[n+'Skill']]||SK[n][0]}";
-  h += "var m=S.hsMode,o=$('osrsOn').checked,r=$('rs3On').checked;show('rotA',m=='rotate');show('rotB',o&&r&&S.swap=='rot'&&m!='rotate');";
-  h += "show('swapRow',o&&r);show('osrsBox',o);show('rs3Box',r);show('cityRow',S.loc=='city');";
-  h += "var s=all('.skRow');for(i=0;i<s.length;i++)s[i].style.display=m=='pick'?'':'none'}";
-  h += "function grid(n){var el=$(n+'Grid'),open=el.className!='grid open',gs=all('.grid'),i,h='';for(i=0;i<gs.length;i++)gs[i].className='grid';if(!open)return;";
-  h += "for(i=0;i<SK[n].length;i++)h+='<button type=\"button\" data-s=\"'+i+'\"'+(i==S[n+'Skill']?' class=\"on\"':'')+'>'+SK[n][i]+'</button>';el.innerHTML=h;el.className='grid open';";
-  h += "if(el.scrollIntoView)el.scrollIntoView({block:'nearest',behavior:'smooth'})}";
-  h += "document.addEventListener('click',function(e){var b=e.target.closest?e.target.closest('button'):null;if(!b)return;var t=b.parentNode,k=t.getAttribute('data-k'),v=b.getAttribute('data-v'),i;";
-  h += "if(b.hasAttribute('data-p')){var tb=all('.tabs button');for(i=0;i<tb.length;i++){tb[i].className='';$(tb[i].getAttribute('data-p')).className='pane'}";
-  h += "b.className='on';$(b.getAttribute('data-p')).className='pane on';return}";
-  h += "if(k&&v!==null){S[k]=typeof S[k]=='number'?+v:typeof S[k]=='boolean'?v=='true':v;paint();return}";
-  h += "if(b.hasAttribute('data-g')){grid(b.getAttribute('data-g'));return}";
-  h += "if(b.hasAttribute('data-s')){S[t.id.slice(0,-4)+'Skill']=+b.getAttribute('data-s');t.className='grid';paint()}});";
-  h += "$('osrsOn').onchange=$('rs3On').onchange=paint;paint();";
-  h += "$('save').onclick=function(){var o={},k;for(k in S)o[k]=S[k];o.osrsOn=$('osrsOn').checked;o.osrsName=$('osrsName').value.trim();";
-  h += "o.rs3On=$('rs3On').checked;o.rs3Name=$('rs3Name').value.trim();o.city=$('city').value.trim();o.stepGoal=+$('stepGoal').value;o.sleepGoal=+$('sleepGoal').value;";
-  h += "location.href='pebblejs://close#'+encodeURIComponent(JSON.stringify(o))}";
-  h += "</script></body></html>";
-  return h;
+  return PAGE.replace("__CFG__", function () { return json(c); })
+    .replace("__DATA__", function () { return json(data); })
+    .replace("__VERSION__", APP_VERSION);
 }
 Pebble.addEventListener("showConfiguration", function () {
   Pebble.openURL("data:text/html;charset=utf-8," + encodeURIComponent(configHtml(getCfg())));
@@ -420,8 +326,13 @@ Pebble.addEventListener("webviewclosed", function (e) {
   var old = getCfg(), c = getCfg();
   for (var k in DEFAULTS) if (k in o) c[k] = o[k];
   // goals divide the orb fills on the watch: keep them in a sane range
-  c.stepGoal = Math.min(100000, Math.max(1000, Math.round(+c.stepGoal) || DEFAULTS.stepGoal));
-  c.sleepGoal = Math.min(12, Math.max(4, +c.sleepGoal || DEFAULTS.sleepGoal));
+  function clamp(k, lo, hi) { c[k] = Math.min(hi, Math.max(lo, +c[k] || DEFAULTS[k])); }
+  clamp("stepGoal", 1000, 100000); clamp("sleepGoal", 4, 12); clamp("activeGoal", 5, 300);
+  clamp("distGoal", 0.5, 50); clamp("calGoal", 50, 3000);
+  if (!(c.orbs instanceof Array) || c.orbs.length !== 4) c.orbs = DEFAULTS.orbs;
+  c.orbs = c.orbs.map(function (m, i) { return ORB_METRICS.indexOf(m) >= 0 ? m : DEFAULTS.orbs[i]; });
+  c.cm = String(c.cm).replace(/[^rsxcw]/g, "");
+  if (!c.osrsOn && !c.rs3On) c.osrsOn = true;
   setCfg(c);
   sendCfg();
   if (c.osrsName !== old.osrsName || c.osrsAcct !== old.osrsAcct || c.osrsOn !== old.osrsOn ||

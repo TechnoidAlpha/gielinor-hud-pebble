@@ -58,7 +58,8 @@ reliably.
 
 ### Status orbs
 
-Coloured green to red, like the game's.
+Coloured green to red, like the game's. These are the defaults: in Settings each orb can show
+battery, heart rate, steps, sleep, active minutes, distance or calories instead.
 
 | Orb | Shows |
 |:---:|-------|
@@ -88,13 +89,17 @@ Necromancy.
 
 <img src="docs/screenshots/settings-hiscores.png" width="260" align="right" alt="Settings page">
 
-Open the Pebble app, find **Gielinor HUD** under your watchfaces and tap **Settings**.
+Open the Pebble app, find **Gielinor HUD** under your watchfaces and tap **Settings**. A live
+preview of the face sits at the top and shows each change as you make it.
 
-- **Hiscores:** Old School and/or RuneScape 3, each with a character name, account type and
-  skill; what the panel shows; how the two games share it
+- **Hiscores:** Old School, RuneScape 3 or both, each with its own character and account
+  type; what the panel shows; your skill, picked from a grid laid out like the in-game skills tab
 - **Weather:** phone GPS or a typed city, Celsius or Fahrenheit, how often to refresh
-- **Health:** daily step goal, sleep goal
-- **Face:** chatbox on or off (the clock follows your watch's 12/24-hour setting)
+- **Orbs:** what each orb shows (battery, heart rate, steps, sleep, active minutes, distance or
+  calories) and your goals
+- **Chatbox:** which messages it shows
+
+The clock follows your watch's 12/24-hour setting.
 
 <br clear="right">
 

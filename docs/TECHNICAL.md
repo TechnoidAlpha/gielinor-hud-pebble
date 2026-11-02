@@ -18,6 +18,10 @@ Releases are built by `.github/workflows/release.yml` when a `v*` tag is pushed.
 - `tools/shots.sh` re-captures the README screenshots on the emulator. It patches `DEMO`
   (watch) and `MOCK` (phone) per variant and restores them from git afterwards.
 - `tools/startframe_diff.sh` proves the start frame hands over invisibly (below).
+- `python3 tools/gen_settings.py` rebuilds the settings page after editing
+  `src/settings/settings.html`, the drawing code or a font (CI checks this).
+- `node tools/test_face.js` tests the face's logic (skill rotation, orbs, chatbox) without a
+  watch. CI runs it.
 - The emulator scripts (`tools/emu/`) run the emery emulator on a virtual X display, so they
   need Linux or WSL with `Xvfb` and ImageMagick.
 
@@ -67,6 +71,25 @@ Storing the icons as arrays of row strings cost about 5 KB of bytecode, and at 3
 the mod archive failed to map (`fxMapArchive failed`). Single strings fixed both. Re-check
 on real hardware before raising either number.
 
+## Settings page
+
+The page is `src/settings/settings.html`. `tools/gen_settings.py` inlines it into
+`src/pkjs/settings_page.js` together with the face's own drawing code (everything in
+`main.js` between the `preview: begin` and `preview: end` markers) and the pixel fonts, and
+the phone fills in the saved settings and its latest data before opening it as a `data:` page.
+So the live preview at the top runs the watch's code, on a canvas, with sample health values.
+It runs a minute every 1.5 seconds to show what changes each minute.
+
+- No `<select>` anywhere: in the Pebble app's webview a native picker opened at the top of
+  the screen and then jumped to the field. Choices are rows of buttons.
+- Hiding a block below a control (the skill grid, say) shortens the page, and the browser
+  then pulls the scroll back so everything jumps under your finger. `keepPlace` holds the page
+  height while a change lands and undoes any drift.
+- The encoded page is about 80 KB. That's within what the Pebble app opens; Clay, the usual
+  settings library, ships pages of a similar size the same way.
+- Orbs always keep their game look. The C start frame draws the default glyphs before it can
+  know the settings, so a look that followed the metric would swap glyphs on every launch.
+
 ## Gotchas found building this
 
 - The BMFont `chars` block must be **sorted by code point**: the host parser binary-searches it.
@@ -76,9 +99,6 @@ on real hardware before raising either number.
 - The face draws into the window `src/c/mdbl.c` creates, and a new Pebble window is white, so
   every relaunch flashed white until JS painted. Painting plain black instead (until the saved
   data was restored) only turned the flash black; the start frame above is the fix.
-- The settings page has no `<select>`. In the Pebble app's webview the native picker opened at
-  the top of the screen and then jumped to the field. Choices are rows of buttons; the skill
-  list opens as a grid under its button.
 - With two games on, the game switch and the skill rotation can tick on the same clock. Each
   game's skill then moves on once per round of games (`sameTick` in `main.js`); otherwise Old
   School only ever showed the even-numbered skills.

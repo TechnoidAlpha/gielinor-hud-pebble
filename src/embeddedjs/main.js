@@ -24,6 +24,9 @@ const VERSION = "26.11.1";
 // sends real weather + hiscores; battery/health switch to live sensors when DEMO is false.
 const DEMO = false;
 
+// ==== preview: begin ==== tools/gen_settings.py copies everything down to "preview: end" into the
+// settings page, which runs it on a canvas as the live preview. Keep it free of watch-only calls
+// outside functions (the page stubs Battery, Health, watch, Style and screen).
 const W = screen.width, H = screen.height;
 
 // ---------------------------------------------------------------- colours (64-colour grid)
@@ -214,9 +217,35 @@ function stepsLabel(n) {
 }
 function levelCol(f) { return f >= 0.75 ? C.green : f >= 0.5 ? C.yellow : f >= 0.25 ? C.orange : C.red; }
 
+// What each orb shows (cfg.orbs, top to bottom). An orb always keeps its game look (Hitpoints,
+// Prayer, Run energy, Special attack): the C start frame draws those glyphs before it can know the
+// settings, so a look that followed the metric would swap glyphs on every launch.
+const ORB_DEFAULT = ["batt", "hr", "steps", "sleep"];
+const ORB_LOOK = [["#FF5555", "#AA0000", "heart"], ["#55FFFF", "#00AAAA", "pray"], ["#FFFF55", "#AAAA00", "boot"], ["#55FFAA", "#00AA55", "moon"]];
+// orb fill (f, 0..1), number (l) and number colour (c) for metric m
+function orbValue(m, b, h) {
+  const lock = h.lock ? { f: 0, l: "--", c: C.grey } : null;
+  if (m === "batt") return b ? { f: b.pct / 100, l: "" + b.pct, c: b.chg ? C.cyan : levelCol(b.pct / 100) } : { f: 0, l: "--", c: C.grey };
+  if (m === "hr") return { f: h.hr ? Math.min(1, h.hr / 180) : 0, l: h.hr ? "" + h.hr : "--", c: C.cyan };
+  if (lock) return lock;
+  if (m === "sleep") { const s = h.sleep / 3600, f = s / cfg.sleepGoal; return { f: f, l: s ? Math.floor(s) + "h" : "--", c: levelCol(f) }; }
+  if (m === "active") { const n = Math.floor(h.active / 60), f = n / cfg.activeGoal; return { f: f, l: n + "m", c: levelCol(f) }; }
+  if (m === "dist") {                                  // km, or miles with Fahrenheit
+    const d = h.dist / (cfg.units === "F" ? 1609.34 : 1000), f = d / cfg.distGoal;
+    return { f: f, l: d < 10 ? (Math.floor(d * 10) / 10) + "" : "" + Math.floor(d), c: levelCol(f) };
+  }
+  if (m === "cal") { const f = h.cal / cfg.calGoal; return { f: f, l: stepsLabel(h.cal), c: levelCol(f) }; }
+  const f = h.steps / cfg.stepGoal;
+  return { f: f, l: stepsLabel(h.steps), c: levelCol(f) };
+}
+
 // ---------------------------------------------------------------- data
 // skill = the Old School pick, skill3 = the RuneScape 3 pick; swap = how two games share the panel
-const cfg = { stepGoal: 8000, sleepGoal: 8, units: "C", hsMode: "pick", skill: 18, skill3: 18, swap: "min", rotMin: 5, chat: true };
+// orbs = what each orb shows, top to bottom; cm = which chatbox messages run (r rain, s steps,
+// x xp, c charging, w welcome), empty = the date only
+// (tools/shots.sh patches hsMode and skill on the first line)
+const cfg = { hsMode: "pick", skill: 18, skill3: 18, swap: "min", rotMin: 5, units: "C",
+  stepGoal: 8000, sleepGoal: 8, activeGoal: 30, distGoal: 5, calGoal: 400, orbs: ORB_DEFAULT, cm: "rsxcw" };
 // DEMO_DATA seeds the panels for emulator renders; real phone DATA replaces it as it arrives.
 const DEMO_DATA = {
   v: 2, at: 0,
@@ -240,8 +269,8 @@ function batt() {
 // `lock` explains a missing reading on the watch instead of showing a silent 0:
 // "off" = Health unavailable, "perm" = no permission; `acc` is the raw access mask (for logs).
 function health() {
-  if (DEMO) return { steps: 5120, hr: 72, sleep: 7 * 3600 + 25 * 60, lock: "", acc: 15 };
-  const h = { steps: 0, hr: 0, sleep: 0, lock: "", acc: -1 };
+  if (DEMO) return { steps: 5120, hr: 72, sleep: 7 * 3600 + 25 * 60, active: 34 * 60, dist: 3800, cal: 312, lock: "", acc: 15 };
+  const h = { steps: 0, hr: 0, sleep: 0, active: 0, dist: 0, cal: 0, lock: "", acc: -1 };
   const t = Date.now();
   try {
     h.acc = Health.metric.accessible({ metric: "step count", start: t - 3600000, end: t });
@@ -252,6 +281,11 @@ function health() {
   try { h.hr = Health.metric.get("heart rate"); } catch (e) {}
   // sleep over the last 24 hours, so last night still counts after midnight and through the day
   try { h.sleep = Health.metric.query({ metric: "sleep seconds", start: t - 86400000, end: t }); } catch (e) {}
+  // today's totals, only for metrics an orb shows
+  const on = (m) => cfg.orbs.indexOf(m) >= 0;
+  if (on("active")) try { h.active = Health.metric.query({ metric: "active seconds" }); } catch (e) {}
+  if (on("dist")) try { h.dist = Health.metric.query({ metric: "walked distance" }); } catch (e) {}
+  if (on("cal")) try { h.cal = Health.metric.query({ metric: "active calories" }); } catch (e) {}
   return h;
 }
 
@@ -305,15 +339,10 @@ function drawFace(port) {
   // ---- orbs (right) ----
   panel(port, 134, 0, 66, 92);
   const b = batt(), h = health();
-  const ox = 137;
-  if (b) orb(port, ox, 2, b.pct / 100, "#FF5555", "#AA0000", "heart", "" + b.pct, b.chg ? C.cyan : levelCol(b.pct / 100));
-  else orb(port, ox, 2, 0, "#FF5555", "#AA0000", "heart", "--", C.grey);
-  const hrF = h.hr ? Math.min(1, h.hr / 180) : 0;
-  orb(port, ox, 24, hrF, "#55FFFF", "#00AAAA", "pray", h.hr ? "" + h.hr : "--", C.cyan);
-  const stF = h.steps / cfg.stepGoal;
-  orb(port, ox, 46, h.lock ? 0 : stF, "#FFFF55", "#AAAA00", "boot", h.lock ? "--" : stepsLabel(h.steps), h.lock ? C.grey : levelCol(stF));
-  const slH = h.sleep / 3600, slF = slH / cfg.sleepGoal;
-  orb(port, ox, 68, h.lock ? 0 : slF, "#55FFAA", "#00AA55", "moon", (h.lock || !slH) ? "--" : (Math.floor(slH) + "h"), h.lock ? C.grey : levelCol(slF));
+  for (let i = 0; i < 4; i++) {
+    const m = cfg.orbs[i] || ORB_DEFAULT[i], v = orbValue(m, b, h);
+    orb(port, 137, 2 + 22 * i, v.f, ORB_LOOK[i][0], ORB_LOOK[i][1], ORB_LOOK[i][2], v.l, v.c);
+  }
 
   // ---- weather ----
   panel(port, 0, 92, W, 48);
@@ -421,25 +450,26 @@ function blockView(d, s, share) {
     name: s.n, frac: max ? 1 : s.f[i] / 100, max: max, skill: i, rem: s.r[i], gm: s.gm, blk: s };
 }
 
-// Chatbox: the most urgent message wins; otherwise rotate useful ones each minute.
+// Chatbox: a warning always wins; otherwise the messages chosen in cfg.cm take turns each minute,
+// and with none chosen (or none with anything to say) it shows the date.
 function chatMessage(d, b, h, hs) {
   if (!btOk) return "Phone link lost. Data will wait.";
   if (b && !b.chg && b.pct <= 15) return "Low hitpoints! Charge your watch.";
   if (h.lock === "off") return "Turn on Pebble Health in the Pebble app.";
   if (h.lock === "perm") return "Allow Health for this face in the Pebble app.";
-  if (!cfg.chat) return DAYS[d.getDay()] + ", " + d.getDate() + " " + MON[d.getMonth()] + " " + d.getFullYear() + ".";
-  const msgs = [];
-  if (data.w && data.w.rt) msgs.push((data.w.c === "snow" ? "Snow" : "Rain") + " likely around " + data.w.rt + ".");
-  if (h.steps >= cfg.stepGoal) msgs.push("Step goal reached. Nice work!");
-  else if (h.steps) msgs.push(h.steps + " steps today, " + (cfg.stepGoal - h.steps) + " to go.");
   const bl = data.hs || [];
   if (cfg.swap === "chat" && bl.length > 1) {          // RS3 lives in the chatbox in this mode
     const r = blockView(d, bl[1]);
     return r.msg ? "RS3: " + r.msg : "RS3 " + r.title + ". " + r.sub + ".";
   }
-  if (hs && hs.rem) msgs.push(kfmt(hs.rem) + " xp to " + skName(hs.blk, hs.skill) + " " + (hs.blk.l[hs.skill] + 1) + ".");
-  if (b && b.chg) msgs.push("Hitpoints regenerating (charging).");
-  msgs.push("Welcome to Gielinor.");
+  const on = (k) => cfg.cm.indexOf(k) >= 0, msgs = [];
+  if (on("r") && data.w && data.w.rt) msgs.push((data.w.c === "snow" ? "Snow" : "Rain") + " likely around " + data.w.rt + ".");
+  if (on("s") && h.steps >= cfg.stepGoal) msgs.push("Step goal reached. Nice work!");
+  else if (on("s") && h.steps) msgs.push(h.steps + " steps today, " + (cfg.stepGoal - h.steps) + " to go.");
+  if (on("x") && hs && hs.rem) msgs.push(kfmt(hs.rem) + " xp to " + skName(hs.blk, hs.skill) + " " + (hs.blk.l[hs.skill] + 1) + ".");
+  if (on("c") && b && b.chg) msgs.push("Hitpoints regenerating (charging).");
+  if (on("w")) msgs.push("Welcome to Gielinor.");
+  if (!msgs.length) return DAYS[d.getDay()] + ", " + d.getDate() + " " + MON[d.getMonth()] + " " + d.getFullYear() + ".";
   return msgs[d.getMinutes() % msgs.length];
 }
 
@@ -455,6 +485,7 @@ function wrap(port, s, maxW, indent) {
   }
   return out;
 }
+// ==== preview: end ====
 
 // false until the saved settings + data are restored. Before that the face shows only its still
 // parts (the C start frame's picture), not placeholders like "Fetching weather..." or a blank.

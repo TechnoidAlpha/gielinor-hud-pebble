@@ -3,3 +3,4 @@ build/
 .lock-waf*
 node_modules/
 tools/emu/out/
+__pycache__/

@@ -32,8 +32,11 @@ variant() {   # name mode skill weather-json
   sed -i "/^const cfg = /s/hsMode: \"pick\", skill: 18/hsMode: \"$mode\", skill: $skill/" "$MAINJS"
   sed -i 's/^var MOCK = false;/var MOCK = true;/' "$PKJS"
   sed -i "s|^var MOCK_W = .*;|var MOCK_W = $wx;|" "$PKJS"
-  sed -i "s/hsMode: \"pick\", skill: 18,/hsMode: \"$mode\", skill: $skill,/" "$PKJS"
-  grep -q "^var MOCK = true;" "$PKJS" && grep -q "^const DEMO = true;" "$MAINJS" || { echo "  patch failed"; return 1; }
+  sed -i "s/hsMode: \"pick\", rotMin: 5,/hsMode: \"$mode\", rotMin: 5,/; s/osrsSkill: 18,/osrsSkill: $skill,/" "$PKJS"
+  # every patch must have applied: a silent miss captures the wrong mode
+  grep -q "^var MOCK = true;" "$PKJS" && grep -q "^const DEMO = true;" "$MAINJS" &&
+    grep -q "^const cfg = { hsMode: \"$mode\", skill: $skill," "$MAINJS" &&
+    grep -q "hsMode: \"$mode\", rotMin: 5," "$PKJS" && grep -q "osrsSkill: $skill," "$PKJS" || { echo "  patch failed"; return 1; }
   rm -f build/*.pbw
   pebble build >/dev/null 2>&1 || { echo "  build failed"; return 1; }
   REPO="$REPO" timeout 280 "$EMU/emu.sh" boot >/dev/null 2>&1 || { echo "  boot failed"; return 1; }

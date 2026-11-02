@@ -34,6 +34,12 @@ jobs:
       - name: Check the start frame's glyphs match the fonts
         run: uv run --with pillow python3 tools/gen_startframe.py --check
 
+      - name: Check the settings page matches its sources (page, face code, fonts)
+        run: python3 tools/gen_settings.py --check
+
+      - name: Test the face's logic
+        run: node tools/test_face.js
+
       - name: Build
         run: pebble build
 
