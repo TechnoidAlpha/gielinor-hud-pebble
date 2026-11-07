@@ -242,21 +242,20 @@ int main(void) {
   // Size the XS machine ourselves (honoured on PebbleOS >= 4.21, coredevices/PebbleOS#1621).
   // ALL of stack/slot/chunk must be non-zero or the record is rejected and the app falls back to
   // a machine too small to load.
-  // Measured on the SDK 4.33 emulator, identical on emery and gabbro (OS heap "Used" at app exit):
-  //   v26.11.1, 41 KB mod:    28672/32768 -> 102716
-  //   v26.11.2, 48.6 KB mod:  28672/32768 -> fxMapArchive failed (no room to map the mod)
-  //   v26.11.2, 42.7 KB mod (no typings, shared px-n glyphs, run-length icons, demo data built
-  //   only when asked):
-  //     slot 27648 -> "Slot allocation: failed" at start; 28672 starts with under 1 KB to spare
-  //     30720/26624 -> 109176 with real data for both games, a kill count, a GE price and every
-  //                    chatbox message  <- this record
-  // Heaps + mod = 63.5 + 42.7 = 106.2 KB. ClaudeUsageRings found the real PT2 hangs at about
-  // 115.7 KB and works at 113.7 KB, so this stays ~7.5 KB under the known-good point.
+  // Measured on the SDK 4.33 emulator (OS heap "Used" at app exit). Each watch builds only its
+  // own layout (tools/gen_layouts.py) and fonts (manifest.json), so the mods differ: emery 42.1 KB,
+  // gabbro 43.6 KB. Slot is the tight heap (the module's functions and tables, at start):
+  //   emery starts from 28672 (27648: "Slot allocation: failed"), gabbro from 29696 (28672 fails).
+  // Records below give each ~2 KB more; see docs/TECHNICAL.md for the worst-case runs.
   // Re-check on real hardware before raising either.
   ModdableCreationRecord cr = {
     .recordSize = sizeof(cr),
     .stack = 6144,
-    .slot = 32768,
+#ifdef PBL_ROUND
+    .slot = 31744,   // starts from 29696 (28672 fails); ~2 KB margin
+#else
+    .slot = 30720,   // starts from 28672 (27648 fails); ~2 KB margin
+#endif
     .chunk = 26624,
 #ifdef PBL_DEBUG
     .flags = kModdableCreationFlagDebug,
