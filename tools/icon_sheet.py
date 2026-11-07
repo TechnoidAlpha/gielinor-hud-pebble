@@ -15,7 +15,14 @@ S, CELL, COLS = 4, 70, 6
 rows = (len(icons) + COLS - 1) // COLS
 sheet = Image.new("RGB", (COLS * CELL, rows * CELL), (0, 0, 0))
 d = ImageDraw.Draw(sheet)
+def unrle(e):   # main.js icon(): a digit 2-9 repeats the next character
+    out, i = [], 0
+    while i < len(e):
+        if "2" <= e[i] <= "9": out.append(e[i + 1] * int(e[i])); i += 2
+        else: out.append(e[i]); i += 1
+    return "".join(out)
 for n, (name, w, body) in enumerate(icons):
+    body = unrle(body)
     w = int(w); h = len(body) // w
     ox, oy = (n % COLS) * CELL + (CELL - w * S) // 2, (n // COLS) * CELL + 4
     d.rectangle([(n % COLS) * CELL + 1, (n // COLS) * CELL + 1, (n % COLS + 1) * CELL - 2, (n // COLS + 1) * CELL - 2], fill=(85, 85, 0))

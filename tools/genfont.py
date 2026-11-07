@@ -182,8 +182,15 @@ def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=
                 for dx in range(s):
                     im.putpixel((x * s + dx, (y - y0) * s + dy), 255)
         items.append((ch, im, 0, y0 * s, adv))
+    # identical bitmaps share one atlas spot (px-n's lowercase letters are its capitals)
+    same = {}
+    for i, it in enumerate(items):
+        if it[1]:
+            key = (it[1].size, it[1].tobytes(), it[3])
+            same.setdefault(key, i)
+    alias = {i: same[(it[1].size, it[1].tobytes(), it[3])] for i, it in enumerate(items) if it[1]}
     # shelf pack, tallest first
-    boxes = [(i, it[1].size) for i, it in enumerate(items) if it[1]]
+    boxes = [(i, it[1].size) for i, it in enumerate(items) if it[1] and alias[i] == i]
     total = sum((w + 1) * (h + 1) for _, (w, h) in boxes)
     maxW = max(64, int(math.sqrt(total) * 1.3))
     x = y = rowh = W = 0; place = {}
@@ -194,6 +201,7 @@ def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=
     H = y + rowh + 2; W += 2
     cover = Image.new("L", (W, H), 0)
     for i, p in place.items(): cover.paste(items[i][1], p)
+    for i, j in alias.items(): place[i] = place[j]
     zero = Image.new("L", (W, H), 0)
     Image.merge("RGBA", (zero, zero, zero, cover)).save(os.path.join(OUT, name + ".png"))
     lh, base = (nrows + 1) * s, base_row * s

@@ -46,6 +46,7 @@ jobs:
       - name: Check the build is a release build
         run: |
           grep -q '^const DEMO = false;' src/embeddedjs/main.js
+          grep -q '^const DEMO_LU = false;' src/embeddedjs/main.js
           grep -q '^var MOCK = false;' src/pkjs/index.js
           # tag, package.json (what the appstore reads) and both in-code versions must agree
           V="${GITHUB_REF_NAME#v}"; V="${V%%-*}"
