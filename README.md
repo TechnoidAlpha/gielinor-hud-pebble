@@ -1,14 +1,14 @@
 <h1 align="center">Gielinor HUD</h1>
 
 <p align="center">
-  <b>An Old School RuneScape-inspired watchface for the Pebble Time 2.</b><br>
+  <b>An Old School RuneScape-inspired watchface for the Pebble Time 2 and Pebble Round 2.</b><br>
   Your day as a game screen: status orbs, live weather, your real hiscores and a chatbox.
 </p>
 
 <p align="center">
   <a href="https://apps.repebble.com/b23f973d0f0141e9b99f114a"><img src="https://img.shields.io/badge/Pebble%20appstore-get%20it-ffff00?labelColor=3e3529" alt="Get it on the Pebble appstore"></a>
   <a href="https://github.com/TechnoidAlpha/gielinor-hud-pebble/releases/latest"><img src="https://img.shields.io/github/v/release/TechnoidAlpha/gielinor-hud-pebble?label=download&color=ffff00&labelColor=3e3529" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/watch-Pebble%20Time%202-ff981f?labelColor=3e3529" alt="Pebble Time 2">
+  <img src="https://img.shields.io/badge/watch-Pebble%20Time%202%20%7C%20Round%202%20(beta)-ff981f?labelColor=3e3529" alt="Pebble Time 2 and Pebble Round 2 (beta)">
   <img src="https://img.shields.io/badge/price-free-00aa00?labelColor=3e3529" alt="Free">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-aaaaaa?labelColor=3e3529" alt="MIT licence"></a>
 </p>
@@ -19,8 +19,14 @@
 
 <p align="center">
   <img src="docs/screenshots/sunny.png" width="200" alt="Sunny day, Woodcutting hiscore">
-  <img src="docs/screenshots/storm.png" width="200" alt="Thunderstorm, Magic hiscore">
-  <img src="docs/screenshots/today.png" width="200" alt="Snow, XP gained today">
+  <img src="docs/screenshots/dark.png" width="200" alt="Dark theme">
+  <img src="docs/screenshots/kc.png" width="200" alt="Zulrah kill count">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/round-hero.png" width="230" alt="Pebble Round 2: the minimap layout">
+  <img src="docs/screenshots/round-levelup.png" width="230" alt="Pebble Round 2: a level-up moment">
+  <br><sub>On the Pebble Round 2 (beta): the minimap layout</sub>
 </p>
 
 <!-- PHOTO: replace with a real on-wrist photo of a Pebble Time 2 running the face
@@ -53,13 +59,18 @@ Top to bottom, the screen shows:
 | **Clock** | The time and date in big pixel numbers with drop shadows, in an original OSRS-style font. Follows your watch's 12/24-hour setting. |
 | **Status orbs** | Four orbs, coloured green to red like the game's: battery, heart rate, steps and sleep, or the stats you choose. [More](#status-orbs) |
 | **Weather** | Temperature, conditions, today's high and low, and the chance of rain or snow, from your phone's location or a city you choose. |
-| **Hiscores** | Your real Old School RuneScape or RuneScape 3 stats, with an XP bar to your next level. Four ways to show them. [More](#hiscores-panel) |
-| **Chatbox** | Short messages that take turns: rain on the way, steps left, XP to your next level and more. [More](#chatbox) |
+| **Hiscores** | Your real Old School RuneScape or RuneScape 3 stats, with an XP bar to your next level. Six ways to show them, including a boss kill count and a Grand Exchange price. [More](#hiscores-panel) |
+| **Chatbox** | Short messages that take turns: a rain countdown, sunset, steps left, XP to your next level, level-ups and more. [More](#chatbox) |
 
 And around it:
 
+- **Three themes:** Classic stone, Dark like the modern client, and Bright for reading in
+  sunlight.
+- **Pebble Round 2 (beta):** its own round layout in the style of the game's minimap.
+  [More](#pebble-round-2-beta)
 - **Settings with a live preview** of the face, so you see every change as you make it.
   [More](#settings)
+- **Makes room for Timeline Quick View** instead of hiding under it.
 - **No blank screen.** Come back from Timeline, Health or an app and the frame, clock and date
   are there at once.
 - **Gentle on battery.** It redraws once a minute, and your phone does all the fetching.
@@ -90,19 +101,27 @@ School in the panel and puts RuneScape 3 in the chatbox. Choose what it shows:
 | Rotate | A different skill every 1, 5, 15 or 60 minutes |
 | Closest to a level-up | The skill you're nearest to levelling |
 | XP gained today | Today's XP, plus your top skill of the day |
+| Kill count | A boss or clue scroll total of your choice, with your rank (Old School) |
+| GE price | One Grand Exchange item's price and how it moved since yesterday (prices from the OSRS Wiki) |
 
-Every mode has an XP bar to your next level. Every skill has its own icon, from Sailing to
+The skill modes have an XP bar to your next level. Every skill has its own icon, from Sailing to
 Necromancy.
+
+Two extras, each with a switch in Settings:
+
+- **Level-up moments.** When a refresh finds a new level, the panel shows it with fireworks and the
+  chatbox congratulates you, for an hour.
+- **Account helms.** A small Ironman, Hardcore or Ultimate helm beside your name.
 
 ### Chatbox
 
 Choose which of these take turns, one each minute:
 
-- Rain or snow on the way, and roughly when
-- Steps left to your daily goal
-- XP to your next level
-- Charging, while the watch is on its charger
-- Welcome to Gielinor
+- **Weather:** rain or snow on the way (a countdown when it's under two hours), the next sunrise
+  or sunset, the feels-like temperature, and wind speed and direction
+- **You:** steps left to your daily goal, and charging while the watch is on its charger
+- **Game:** XP to your next level, level-ups, and your Grand Exchange item's price
+- **Other:** Welcome to Gielinor
 
 With none chosen, the chatbox shows the date. Warnings always come first: battery at 15% or
 less, phone disconnected, and Pebble Health turned off.
@@ -117,9 +136,11 @@ preview of the face sits at the top and shows each change as you make it.
 - **Weather:** phone GPS or a typed city, Celsius or Fahrenheit, how often to refresh
 - **Orbs:** what each orb shows (battery, heart rate, steps, sleep, active minutes, distance or
   calories) and your goals
-- **Chatbox:** which messages it shows
+- **Chatbox:** which messages it shows, grouped by weather, you and the game
+- **Look:** the theme, with a preview of each
 
-The clock follows your watch's 12/24-hour setting.
+On a Pebble Round 2 the preview shows the round layout. The clock follows your watch's 12/24-hour
+setting.
 
 <table>
   <tr>
@@ -130,12 +151,38 @@ The clock follows your watch's 12/24-hour setting.
     <td align="center"><img src="docs/screenshots/settings-orbs.png" width="300" alt="Orbs tab: what each orb shows, and daily goals"><br><b>Orbs</b>: what each one shows, and your goals</td>
     <td align="center"><img src="docs/screenshots/settings-chatbox.png" width="300" alt="Chatbox tab: which messages appear"><br><b>Chatbox</b>: which messages appear</td>
   </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/settings-kc.png" width="300" alt="Kill count picker with a search box"><br><b>Kill count</b>: pick any boss or clue</td>
+    <td align="center"><img src="docs/screenshots/settings-look.png" width="300" alt="Look tab: three themes with previews"><br><b>Look</b>: Classic, Dark or Bright</td>
+  </tr>
 </table>
+
+## Pebble Round 2 (beta)
+
+On the round screen the face gets its own layout, modelled on the game's minimap: the clock on
+top, the weather inside a minimap with its compass, two orbs either side, then the hiscores and the
+chatbox following the curve. Every setting works the same, and Quick View gets a band across the
+middle while the chatbox stays below it.
+
+It's built and tested on the Round 2 emulator, but I don't have a Round 2 to try it on. If you do,
+please [open an issue](https://github.com/TechnoidAlpha/gielinor-hud-pebble/issues) with a photo,
+good or bad.
+
+<p align="center"><img src="docs/screenshots/round-dark.png" width="230" alt="Pebble Round 2, Dark theme"> <img src="docs/screenshots/round-kc.png" width="230" alt="Pebble Round 2, kill count"></p>
 
 ## FAQ
 
 **Which watches does it work on?**
-The Pebble Time 2. It's designed for its 200×228 colour screen. Other Pebbles aren't supported.
+The Pebble Time 2 (200×228) and, in beta, the Pebble Round 2 (260×260 round). Older Pebbles
+aren't supported.
+
+**Why does the face change colour a moment after it opens?**
+The watch paints the Classic frame instantly while the face starts. With the Dark or Bright theme
+it then takes on your theme's colours, a fraction of a second later.
+
+**The GE price says the item wasn't found.**
+Type the item's name as it appears in the game, for example "Abyssal whip". Part of a name works
+too: the first item that contains it is used.
 
 **The weather has gone grey.**
 The face greys out weather that is more than 3 hours old and shows its age instead of the
@@ -162,13 +209,15 @@ Yes, please [open an issue](https://github.com/TechnoidAlpha/gielinor-hud-pebble
 
 ## Privacy
 
-The face has no server of its own and collects nothing. Your phone only talks to two public
+The face has no server of its own and collects nothing. Your phone only talks to these public
 services:
 
 - [Open-Meteo](https://open-meteo.com/) receives your approximate location (or the city you
   typed) to fetch the weather.
 - Jagex's official hiscores (`secure.runescape.com`, plus RuneMetrics at `apps.runescape.com`
   for RuneScape 3) receive the character name you entered.
+- If you use the price watch, the [OSRS Wiki's prices API](https://prices.runescape.wiki/)
+  receives the item you chose.
 
 Your settings stay on your phone. Health data never leaves the watch.
 
@@ -178,7 +227,8 @@ Everything you see on the watch was made from scratch for this face. No files fr
 RuneScape or RuneScape are in this repository or in the watchface: no sprites, icons, fonts,
 screenshots, sounds or logos.
 
-- **Icons:** all 45 (weather, orbs and every skill in both games) are original pixel art. Each
+- **Icons:** all 49 (weather, orbs, every skill in both games, helms, clue scroll, coins and the
+  rest) are original pixel art. Each
   one is a line of text in [`src/embeddedjs/main.js`](src/embeddedjs/main.js), so you can read
   every pixel.
 - **Fonts:** the pixel fonts are drawn letter by letter as text in
@@ -186,8 +236,8 @@ screenshots, sounds or logos.
 - **Pictures in this README:** screenshots of the face running in the Pebble emulator and of
   its own settings page, plus a banner and demo put together from those screenshots by
   [`tools/banner.py`](tools/banner.py) and [`tools/demo_gif.py`](tools/demo_gif.py).
-- **Layout:** the orbs, stone panels and chatbox are a tribute to the game's interface, redrawn
-  for a 200×228 watch screen.
+- **Layout:** the orbs, stone panels, minimap and chatbox are a tribute to the game's interface,
+  redrawn for a 200×228 watch screen and a 260×260 round one.
 - **Your stats:** fetched live from Jagex's public hiscores. None of their data ships with the
   face.
 
@@ -199,6 +249,7 @@ Jagex. The face is free and makes no money.
 - Made by [Technoid](https://github.com/TechnoidAlpha) in answer to
   [a request on r/pebble](https://www.reddit.com/r/pebble/comments/1xm2j8j/request/) for an OSRS watchface.
 - Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
+- Grand Exchange prices from the [OSRS Wiki](https://prices.runescape.wiki/).
 
 ## Disclaimer
 
