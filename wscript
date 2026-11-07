@@ -24,6 +24,10 @@ def configure(ctx):
 
 
 def build(ctx):
+    # each watch compiles its own copy of main.js, without the other watch's layout
+    # (tools/gen_layouts.py, src/embeddedjs/gen/; see manifest.json)
+    import subprocess, sys
+    subprocess.check_call([sys.executable, os.path.join(ctx.path.abspath(), 'tools', 'gen_layouts.py')])
     ctx.load('pebble_sdk')
 
     build_worker = os.path.exists('worker_src')

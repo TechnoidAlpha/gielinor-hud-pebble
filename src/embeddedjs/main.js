@@ -376,6 +376,8 @@ function clockString(d) {
   return (hour12() ? "" + hh : pad(hh)) + ":" + pad(d.getMinutes());
 }
 function dateString(d) { return DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()]; }
+// ==== layout: square begin ==== (the Time 2 layout; tools/gen_layouts.py leaves it out of the
+// gabbro build, and the round block out of the emery build)
 function drawClock(port, d) {
   panel(port, 0, 0, 134, 92);
   well(port, 5, 5, 124, 82);
@@ -385,8 +387,7 @@ function drawClock(port, d) {
 const ORB_GLYPHS = ["heart", "pray", "boot", "moon"];
 // The still parts of the face, exactly as the C start frame paints them (src/c/mdbl.c): shown
 // until the saved data is restored, so the hand-over from C changes nothing on screen.
-function drawStill(port) {
-  if (ROUND) { roundStill(port); return; }
+function squareStill(port) {
   port.fillColor(C.bg, 0, 0, W, H);
   drawClock(port, new Date());
   panel(port, 134, 0, 66, 92);
@@ -398,9 +399,7 @@ function drawStill(port) {
   txtFlat(port, "Gielinor: ", "n", C.inkBlue, 6, 198, "l");
 }
 
-function drawFace(port) {
-  const d = new Date(), b = batt(), h = health(), hs = hiscoreView(d);
-  if (ROUND) { roundFace(port, d, b, h, hs); return; }
+function squareFace(port, d, b, h, hs) {
   port.fillColor(C.bg, 0, 0, W, H);
   drawClock(port, d);
   panel(port, 134, 0, 66, 92);
@@ -487,7 +486,9 @@ function drawChat(port, d, b, h, hs) {
   if (lines[0]) txtFlat(port, lines[0], "n", C.ink, 6 + whoW, 198, "l");
   if (lines[1]) txtFlat(port, lines[1], "n", C.ink, 6, 212, "l");
 }
+// ==== layout: square end ====
 
+// ==== layout: round begin ====
 // ================================================================ Pebble Round 2 (260x260)
 // The minimap layout, drawn bigger than the Time 2's: text is 15 px capitals (px-n3) and the
 // clock 35 px (px-c5). Top to bottom:
@@ -645,6 +646,15 @@ function roundChat(port, d, b, h, hs) {
   const lines = wrap(port, chatMessage(d, b, h, hs), [2 * chord(l1 + 15) - 14, 2 * chord(l2 + 15) - 14], "r");
   if (lines[0]) txtFlat(port, lines[0], "r", C.ink, RC, l1, "c");
   if (lines[1]) txtFlat(port, lines[1], "r", C.ink, RC, l2, "c");
+}
+// ==== layout: round end ====
+
+// The still parts of the face (the C start frame's picture, see roundStill / squareStill), and
+// the whole face; each watch's build carries only its own layout.
+function drawStill(port) { if (ROUND) roundStill(port); else squareStill(port); }
+function drawFace(port) {
+  const d = new Date(), b = batt(), h = health(), hs = hiscoreView(d);
+  if (ROUND) roundFace(port, d, b, h, hs); else squareFace(port, d, b, h, hs);
 }
 
 // What the hiscores panel shows, per mode: title / right / sub / bar fraction / icon, or a msg.
