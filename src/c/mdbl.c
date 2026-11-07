@@ -27,13 +27,15 @@ static void fill(uint32_t hex, int x, int y, int w, int h) {
   graphics_context_set_fill_color(s_ctx, GColorFromHEX(hex));
   graphics_fill_rect(s_ctx, GRect(x, y, w, h), 0, GCornerNone);
 }
-// main.js panel() and well()
+// main.js panel() (the Time 2 frame only) and well()
+#ifndef PBL_ROUND
 static void panel(int x, int y, int w, int h) {
   fill(0x000000, x, y, w, h);
   fill(0xAAAA55, x + 1, y + 1, w - 2, h - 2);
   fill(0x555555, x + 2, y + 2, w - 3, h - 3);
   fill(0x555500, x + 2, y + 2, w - 4, h - 4);
 }
+#endif
 static void well(int x, int y, int w, int h) {
   fill(0x555555, x, y, w, h);
   fill(0x000000, x, y, w - 1, h - 1);
@@ -118,28 +120,56 @@ static void clock_text(char *buf, size_t n, struct tm *t) {
 #ifdef PBL_ROUND
 // ---------------------------------------------------------------- Round 2: the minimap layout
 #define RC (W / 2)
-// main.js chord(): floor(sqrt(RC^2 - (y + 0.5 - RC)^2)) = floor(isqrt(4RC^2 - (2y + 1 - 2RC)^2) / 2)
-static int chord(int y) {
-  int d = 2 * y + 1 - 2 * RC, v = 4 * RC * RC - d * d, k = 0;
+// main.js chord(y, r): floor(sqrt(r^2 - (y + 0.5 - RC)^2)) = floor(isqrt(4r^2 - (2y + 1 - 2RC)^2) / 2)
+static int chord_r(int y, int r) {
+  int d = 2 * y + 1 - 2 * RC, v = 4 * r * r - d * d, k = 0;
   if (v <= 0) return 0;
   while ((k + 1) * (k + 1) <= v) k++;
   return k / 2;
 }
-// main.js roundBand(): rows y0..y1 clipped to the circle, edge colour on the first and last row
-static void round_band(int y0, int y1, uint32_t fillc, uint32_t edge) {
-  for (int y = y0; y <= y1; y++) { int h = chord(y); if (h) fill(y == y0 || y == y1 ? edge : fillc, RC - h, y, 2 * h, 1); }
+static int chord(int y) { return chord_r(y, RC); }
+// main.js roundBand(): rows y0..y1 clipped to the circle, edge colour on the first and last row,
+// and hi on the second row when has_hi
+static void round_band(int y0, int y1, uint32_t fillc, uint32_t edge, bool has_hi, uint32_t hi) {
+  for (int y = y0; y <= y1; y++) {
+    int h = chord(y);
+    if (h) fill(y == y0 || y == y1 ? edge : (has_hi && y == y0 + 1) ? hi : fillc, RC - h, y, 2 * h, 1);
+  }
+}
+// main.js roundBackdrop(): dark outer line, lit edge, stone, and the fixed grain scatter
+static void round_backdrop(void) {
+  disc(RC, RC, RC - 1, 0x000000);
+  disc(RC, RC, RC - 2, 0xAAAA55);
+  disc(RC, RC, RC - 4, 0x555500);
+  for (int k = 0; k < 150; k++) {
+    int x = (k * 97 + 13) % 236 + 12, y = (k * 61 + 7) % 236 + 12, dx = x - RC, dy = y - RC;
+    if (dx * dx + dy * dy < (RC - 8) * (RC - 8)) fill(0x555555, x, y, 2, 1);
+  }
+}
+// main.js drawClock() round: the viewport well (CV_Y0 9 .. CV_Y1 70, CV_HW 78)
+static void round_viewport(void) {
+  for (int y = 9; y <= 70; y++) {
+    int h = chord_r(y, RC - 8);
+    if (h > 78) h = 78;
+    if (!h) continue;
+    bool edge = y == 9 || y == 70;
+    fill(edge ? 0x000000 : 0x555555, RC - h - 1, y, 2 * h + 2, 1);
+    if (!edge) fill(0x000000, RC - h, y, 2 * h, 1);
+  }
 }
 static const char *NORTH = "07..........R.....RRR...RRWRR....W......W..........";   // main.js ICONS.north, unpacked
 static void draw_start(Layer *layer, GContext *ctx) {
   s_ctx = ctx;
   fill(0x000000, 0, 0, W, H);
+  round_backdrop();
+  round_viewport();
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   char buf[16];
   clock_text(buf, sizeof buf, t);
-  text_c(&SF_CLK, 4, buf, 0xFFFF00, RC, 16);
+  text_c(&SF_CLK, 4, buf, 0xFFFF00, RC, 18);
   snprintf(buf, sizeof buf, "%s %d %s", DOW[t->tm_wday], t->tm_mday, MON[t->tm_mon]);
-  text_c(&SF_M, 2, buf, 0xFFAA00, RC, 50);
+  text_c(&SF_M, 2, buf, 0xFFAA00, RC, 51);
   // the minimap ring (main.js MM_Y 120, MM_R 46) and its compass
   disc(RC, 120, 46, 0x000000); disc(RC, 120, 45, 0xAAAA55); disc(RC, 120, 44, 0x555500);
   disc(RC, 120, 41, 0x000000); disc(RC, 120, 40, 0x000000);
@@ -150,8 +180,8 @@ static void draw_start(Layer *layer, GContext *ctx) {
   }
   // main.js orbSpot(): Hitpoints and Prayer left, Run and Special right
   for (int i = 0; i < 4; i++) orb_still(i < 2 ? 18 : 182, i % 2 ? 138 : 90, ORB_GLYPHS[i], i >= 2);
-  round_band(168, 208, 0x555500, 0x000000);   // main.js HS_Y .. HS_Y + 40
-  round_band(211, H - 1, 0xFFFFAA, 0xAA5500);  // main.js CH_Y
+  round_band(168, 208, 0x555500, 0x000000, true, 0xAAAA55);   // main.js HS_Y .. HS_Y + 40
+  round_band(211, H - 1, 0xFFFFAA, 0xAA5500, false, 0);         // main.js CH_Y
 }
 #else
 // ---------------------------------------------------------------- Time 2: the game screen

@@ -42,15 +42,16 @@ const C = {
   cyan: "#00FFFF", grey: "#AAAAAA", shadow: "#000000",
   xpFill: "#00AA00", xpBack: "#550000",
   pTitle: "#FFFF00", pText: "#FFFFFF", pAccent: "#FFAA00", pCool: "#00FFFF", pDim: "#AAAAAA", pShadow: "#000000",
+  grain: "#555555",   // round layout: the scatter of darker pixels that makes the stone look like stone
 };
 const THEMES = {
   stone: {},
   // the modern game client's dark interface: black panels, grey bevels, a dark chatbox
   dark: { bg: "#000000", stone: "#000000", stoneHi: "#555555", stoneMid: "#555555", parch: "#000000", parchLo: "#555555",
-    ink: "#FFFFFF", inkBlue: "#55AAFF" },
+    ink: "#FFFFFF", inkBlue: "#55AAFF", grain: "#000000" },
   // light panels for bright daylight on the reflective screen: dark text, white chatbox
   bright: { bg: "#FFFFFF", stone: "#FFFFFF", stoneHi: "#FFFFFF", stoneMid: "#AAAAAA", parch: "#FFFFFF", parchLo: "#000000",
-    ink: "#000000", inkBlue: "#0000AA", xpBack: "#AAAAAA",
+    ink: "#000000", inkBlue: "#0000AA", xpBack: "#AAAAAA", grain: "#FFFFFF",
     pTitle: "#000000", pText: "#000000", pAccent: "#AA5500", pCool: "#0055AA", pDim: "#555555", pShadow: "#FFFFFF" },   // no shadow: it blurs dark text
 };
 const BASE = {};
@@ -357,8 +358,11 @@ let btOk = true; try { btOk = !!watch.connected.app; } catch (e) {}
 // orbs either side of it, then the hiscores band and the chatbox following the screen's curve.
 const ROUND = W === H;
 const RC = W >> 1;                                     // round: screen centre
-// half the width of the round screen at row y (0 outside the circle)
-function chord(y) { const dy = y + 0.5 - RC; return dy * dy >= RC * RC ? 0 : Math.floor(Math.sqrt(RC * RC - dy * dy)); }
+// half the width of a circle of radius r (default: the screen) centred on the screen, at row y
+function chord(y, r) {
+  if (r === undefined) r = RC;
+  const dy = y + 0.5 - RC; return dy * dy >= r * r ? 0 : Math.floor(Math.sqrt(r * r - dy * dy));
+}
 // Timeline Quick View covers the bottom of the screen; peek = how many pixels (0 when hidden),
 // set from the app's height by the resize listener
 let peek = 0;
@@ -371,8 +375,16 @@ function clockString(d) {
 function dateString(d) { return DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()]; }
 function drawClock(port, d) {
   if (ROUND) {
-    txt(port, clockString(d), "c", C.yellow, RC, 16, "c");
-    txt(port, dateString(d), "m", C.orange, RC, 50, "c");
+    // the viewport: a dark well shaped like the top of the screen, as the Time 2's clock panel
+    for (let y = CV_Y0; y <= CV_Y1; y++) {
+      const h = Math.min(CV_HW, chord(y, RC - 8));
+      if (!h) continue;
+      const edge = y === CV_Y0 || y === CV_Y1;
+      port.fillColor(edge ? C.stoneLo : C.stoneMid, RC - h - 1, y, 2 * h + 2, 1);
+      if (!edge) port.fillColor(C.inset, RC - h, y, 2 * h, 1);
+    }
+    txt(port, clockString(d), "c", C.yellow, RC, 18, "c");
+    txt(port, dateString(d), "m", C.orange, RC, 51, "c");
     return;
   }
   panel(port, 0, 0, 134, 92);
@@ -390,6 +402,8 @@ function orbSpot(i) {
 // round: the minimap ring that holds the weather, and the stone band behind the hiscores
 // minimap centre and radius; HS_Y = top of the hiscores band, CH_Y = top of the chatbox band
 const MM_Y = 120, MM_R = 46, HS_Y = 168, CH_Y = 211;
+// round: the clock viewport's rows and its widest half-width
+const CV_Y0 = 9, CV_Y1 = 70, CV_HW = 78;
 function minimap(port) {
   disc(port, RC, MM_Y, MM_R, C.stoneLo);
   disc(port, RC, MM_Y, MM_R - 1, C.stoneHi);
@@ -401,21 +415,34 @@ function minimap(port) {
   disc(port, RC - 32, MM_Y - 32, 6, C.stoneMid);
   icon(port, "north", RC - 35, MM_Y - 36, 1);
 }
-function roundBand(port, y0, y1, fill, edge) {        // rows y0..y1 clipped to the circle
+// rows y0..y1 clipped to the circle; edge on the first and last row, hi (if given) on the second
+function roundBand(port, y0, y1, fill, edge, hi) {
   for (let y = y0; y <= y1; y++) {
     const h = chord(y);
-    if (h) port.fillColor(y === y0 || y === y1 ? edge : fill, RC - h, y, 2 * h, 1);
+    if (h) port.fillColor(y === y0 || y === y1 ? edge : hi && y === y0 + 1 ? hi : fill, RC - h, y, 2 * h, 1);
+  }
+}
+// round: the whole screen is one stone frame (as on the Time 2, every pixel belongs to a panel):
+// a dark outer line, a lit edge, the stone, and a fixed scatter of grain
+function roundBackdrop(port) {
+  disc(port, RC, RC, RC - 1, C.stoneLo);
+  disc(port, RC, RC, RC - 2, C.stoneHi);
+  disc(port, RC, RC, RC - 4, C.stone);
+  for (let k = 0; k < 150; k++) {
+    const x = (k * 97 + 13) % 236 + 12, y = (k * 61 + 7) % 236 + 12, dx = x - RC, dy = y - RC;
+    if (dx * dx + dy * dy < (RC - 8) * (RC - 8)) port.fillColor(C.grain, x, y, 2, 1);
   }
 }
 // The still parts of the face, exactly as the C start frame paints them (src/c/mdbl.c): shown
 // until the saved data is restored, so the hand-over from C changes nothing on screen.
 function drawStill(port) {
   port.fillColor(C.bg, 0, 0, W, H);
+  if (ROUND) roundBackdrop(port);
   drawClock(port, new Date());
   if (ROUND) {
     minimap(port);
     for (let i = 0; i < 4; i++) { const o = orbSpot(i); orb(port, o[0], o[1], 0, C.grey, C.grey, ORB_GLYPHS[i], "", C.grey, o[2]); }
-    roundBand(port, HS_Y, HS_Y + 40, C.stone, C.stoneLo);
+    roundBand(port, HS_Y, HS_Y + 40, C.stone, C.stoneLo, C.stoneHi);
     roundBand(port, CH_Y, H - 1, C.parch, C.parchLo);
     return;
   }
@@ -431,6 +458,7 @@ function drawStill(port) {
 function drawFace(port) {
   port.fillColor(C.bg, 0, 0, W, H);
   const d = new Date(), b = batt(), h = health(), hs = hiscoreView(d);
+  if (ROUND) roundBackdrop(port);
   drawClock(port, d);
   if (ROUND) minimap(port); else panel(port, 134, 0, 66, 92);
   for (let i = 0; i < 4; i++) {
@@ -488,7 +516,7 @@ const HELM = { iron: "#AAAAAA", hcim: "#FF0000", uim: "#FFFFFF" };
 function drawHiscores(port, hs, y, compact) {
   // x0..x1 = the text column, ix = icon well
   let x0 = 40, x1 = W - 7, ix = 5;
-  if (ROUND) { roundBand(port, y, y + 40, C.stone, C.stoneLo); x0 = 66; x1 = 228; ix = 32; }
+  if (ROUND) { roundBand(port, y, y + 40, C.stone, C.stoneLo, C.stoneHi); x0 = 66; x1 = 228; ix = 32; }
   else panel(port, 0, y, W, compact ? Math.min(37, H - peek - y) : 52);
   if (hs.msg) { ptxt(port, hs.msg, "n", C.pDim, W >> 1, y + (ROUND ? 16 : compact ? 13 : 20), "c"); return; }
   // rows: title, bar, then the sub line; tighter on the round band so the sub line clears the chatbox

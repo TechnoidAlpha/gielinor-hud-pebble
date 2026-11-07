@@ -66,11 +66,14 @@ For that hand-over to be invisible the two pictures must match exactly:
 
 - **Time 2 (emery, 200x228):** the game screen, with the clock viewport, the orb column and the
   stone panels.
-- **Round 2 (gabbro, 260x260):** the minimap layout. The clock and date sit on top, the weather
-  inside a minimap ring (`MM_Y`, `MM_R`), two orbs either side of it (`orbSpot`; `orb(..., flip)`
-  puts the value plate on the right), then the hiscores band (`HS_Y`) and the chatbox (`CH_Y`).
-  Both bands are horizontal spans clipped to the circle (`chord`, `roundBand`), and chatbox
-  lines wrap to the width the curve allows at each line.
+- **Round 2 (gabbro, 260x260):** the minimap layout. As on the Time 2, every pixel belongs to
+  the stone frame (`roundBackdrop`: a dark outer line, a lit edge, the stone and a fixed scatter
+  of grain), so nothing floats on bare black. The clock and date sit in a viewport well shaped
+  like the top of the screen (`CV_Y0`..`CV_Y1`, at most `CV_HW` wide), the weather inside a
+  minimap ring with a compass (`MM_Y`, `MM_R`), two orbs either side of it (`orbSpot`;
+  `orb(..., flip)` puts the value plate on the right), then the bevelled hiscores band (`HS_Y`)
+  and the chatbox (`CH_Y`). Shapes are horizontal spans clipped to a circle (`chord(y, r)`,
+  `roundBand`), and chatbox lines wrap to the width the curve allows at each line.
 
 The C start frame has a matching branch for each (`#ifdef PBL_ROUND` in `mdbl.c`, with the same
 `chord` done in integers), and `startframe_diff.sh` checks both.
