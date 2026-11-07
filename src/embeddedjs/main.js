@@ -376,6 +376,10 @@ function clockString(d) {
   return (hour12() ? "" + hh : pad(hh)) + ":" + pad(d.getMinutes());
 }
 function dateString(d) { return DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()]; }
+const ORB_GLYPHS = ["heart", "pray", "boot", "moon"];
+// weather older than 3 hours (phone offline, API refusing) greys out and says how old
+function weatherAge(w) { const age = w && w.at ? Date.now() / 1000 - w.at : 0; return [age, age > 3 * 3600]; }
+
 // ==== layout: square begin ==== (the Time 2 layout; tools/gen_layouts.py leaves it out of the
 // gabbro build, and the round block out of the emery build)
 function drawClock(port, d) {
@@ -384,7 +388,6 @@ function drawClock(port, d) {
   txt(port, clockString(d), "c", C.yellow, 67, 14, "c");
   txt(port, dateString(d), "m", C.orange, 67, 58, "c");
 }
-const ORB_GLYPHS = ["heart", "pray", "boot", "moon"];
 // The still parts of the face, exactly as the C start frame paints them (src/c/mdbl.c): shown
 // until the saved data is restored, so the hand-over from C changes nothing on screen.
 function squareStill(port) {
@@ -415,8 +418,6 @@ function squareFace(port, d, b, h, hs) {
 }
 
 // ---- weather (Time 2): the panel under the clock
-// older than 3 hours (phone offline, API refusing) it greys out and says how old
-function weatherAge(w) { const age = w && w.at ? Date.now() / 1000 - w.at : 0; return [age, age > 3 * 3600]; }
 function drawWeather(port) {
   const w = data.w, ag = weatherAge(w), age = ag[0], stale = ag[1];
   const pS = w ? w.p + "%" : "", mark = w && w.c === "snow" ? "flake" : "drop";

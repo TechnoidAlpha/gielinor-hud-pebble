@@ -109,5 +109,15 @@ for (const [f, W, H] of [[face, 200, 228], [round, 260, 260]]) {
   check(`${W}x${H}: all themes x modes x Quick View draw on screen (${calls} calls)`, bad === 0 && calls > 0);
 }
 
+// each watch builds main.js without the other watch's layout (tools/gen_layouts.py): a layout
+// block may only use what the shared code defines, never the other block
+function block(n) { const a = src.indexOf(`// ==== layout: ${n} begin ====`), b = src.indexOf(`// ==== layout: ${n} end ====`); return src.slice(a, b); }
+const defs = (t) => new Set([...t.matchAll(/^(?:function|const|let)\s+(\w+)/gm)].map((m) => m[1]));
+for (const [mine, other] of [["round", "square"], ["square", "round"]]) {
+  const used = new Set([...block(mine).matchAll(/\b([A-Za-z_]\w*)\b/g)].map((m) => m[1])), own = defs(block(mine));
+  const bad = [...defs(block(other))].filter((d) => used.has(d) && !own.has(d));
+  check(`${mine} layout uses nothing from the ${other} layout${bad.length ? ": " + bad.join(", ") : ""}`, bad.length === 0);
+}
+
 console.log(fails ? `${fails} FAILED` : "all passed");
 process.exit(fails ? 1 : 0);
