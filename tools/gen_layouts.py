@@ -28,8 +28,10 @@ def strip(src, block):
 
 
 def main():
+    """Write the per-watch files; returns True when either one changed."""
     src = open(SRC, encoding="utf-8").read()
     os.makedirs(OUT, exist_ok=True)
+    changed = False
     for platform, drop in (("emery", "round"), ("gabbro", "square")):
         text = strip(src, drop)
         path = os.path.join(OUT, "main-%s.js" % platform)
@@ -37,7 +39,12 @@ def main():
         if cur != text:                      # untouched files keep their timestamps (no rebuild)
             with open(path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(text)
+            changed = True
+    return changed
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    # wscript: exit code 3 = changed, so it can clear the compiled mods (the SDK's mod step does
+    # not always notice a changed module file and would reuse the old bytecode)
+    sys.exit(3 if main() and "--status" in sys.argv else 0)

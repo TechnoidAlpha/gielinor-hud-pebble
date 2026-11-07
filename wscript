@@ -24,10 +24,31 @@ def configure(ctx):
 
 
 def build(ctx):
-    # each watch compiles its own copy of main.js, without the other watch's layout
-    # (tools/gen_layouts.py, src/embeddedjs/gen/; see manifest.json)
-    import subprocess, sys
-    subprocess.check_call([sys.executable, os.path.join(ctx.path.abspath(), 'tools', 'gen_layouts.py')])
+    # Each watch compiles its own copy of main.js without the other watch's layout
+    # (tools/gen_layouts.py writes src/embeddedjs/gen/; manifest.json points each platform at its
+    # copy). pebble-tool compiles the JS (mcrun) BEFORE this script runs, so when the generator
+    # changed a file that compile used the old copy: run mcrun again, the same way pebble-tool
+    # does, so the bundle always carries the current code.
+    import shutil, subprocess, sys
+    rc = subprocess.call([sys.executable, os.path.join(ctx.path.abspath(), 'tools', 'gen_layouts.py'), '--status'])
+    if rc not in (0, 3):
+        ctx.fatal('tools/gen_layouts.py failed')
+    if rc == 3:
+        import json
+        root = ctx.path.abspath()
+        platforms = json.load(open(os.path.join(root, 'package.json')))['pebble']['targetPlatforms']
+        debug = os.path.exists(os.path.join(root, 'build', '.pebble_debug'))   # pebble-tool's DEBUG_BUILD_MARKER
+        variant = 'debug' if debug else 'release'
+        for platform in platforms:
+            out = os.path.join(root, 'build', 'mods', platform, 'mcrun')
+            cmd = ['mcrun', '-m', os.path.join(root, 'src', 'embeddedjs', 'manifest.json'), '-f', 'x',
+                   '-p', 'pebble/' + platform, '-t', 'build', '-o', out, '-s', 'tech.moddable.pebble']
+            if debug:
+                cmd.append('-d')
+            subprocess.check_call(cmd, cwd=root, stdout=subprocess.DEVNULL)
+            shutil.copy2(os.path.join(out, 'bin', 'pebble', variant, 'embeddedjs', 'mc.xsa'),
+                         os.path.join(root, 'build', 'mods', platform, 'mc.xsa'))
+        print('gen_layouts: main.js changed, recompiled the mods')
     ctx.load('pebble_sdk')
 
     build_worker = os.path.exists('worker_src')
