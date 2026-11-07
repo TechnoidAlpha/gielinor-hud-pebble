@@ -565,7 +565,7 @@ function xpRing(port, frac, max) {
 function roundOrb(port, x, y, frac, fluid, fluidLo, glyph, label, labelCol, plateRight) {
   const cy = y + (RO_PH >> 1), cx = plateRight ? x + RO_R : x + RO_PW + 3 + RO_R, px = plateRight ? x + 2 * RO_R + 4 : x;
   well(port, px, y, RO_PW, RO_PH);
-  if (label) txt(port, label, "r", labelCol, px + RO_PW - 3 + 3, y + 3, "r");
+  if (label) txt(port, label, "r", labelCol, px + (RO_PW >> 1), y + 4, "c");   // centred on the plate
   disc(port, cx, cy, RO_R + 1, C.stoneLo);
   disc(port, cx, cy, RO_R, C.stoneMid);
   disc(port, cx, cy, RO_R - 1, "#000055");
@@ -616,14 +616,16 @@ function roundHiscore(port, hs) {
     lines.forEach((l, k) => txt(port, l, "n", C.grey, RC, MM_Y - 7 * lines.length + 14 * k + 1, "c"));
     return;
   }
-  icon(port, hs.icon, RC - 10, MM_Y - 33, 2);
-  const big = hs.big || "";
-  // 35 px digits for a value of up to two digits (a level); otherwise 15 px capitals
-  if (/^[0-9]{1,2}$/.test(big)) txt(port, big, "k", hs.max ? C.yellow : C.white, RC, MM_Y - 11, "c");
-  else txt(port, big, "r", C.white, RC, MM_Y - 4, "c");
+  const big = hs.big || "", digits = /^[0-9]{1,2}$/.test(big);
   // a label under the number: the game (with both on), or which boss / item, cut to fit
   let tag = hs.tag || (hs.icon === "boss" || hs.icon === "clue" || hs.icon === "coins" ? hs.title : "");
   while (tag && tw(port, tag, "n") > 52) tag = tag.slice(0, -1);
+  // icon, number and label as one block, centred in the well both ways
+  const dy = tag ? 0 : digits ? 4 : 11, iw = ICONS[hs.icon] ? parseInt(ICONS[hs.icon].slice(0, 2), 10) : 10;
+  icon(port, hs.icon, RC - iw, MM_Y - 33 + dy, 2);
+  // 35 px digits for a value of up to two digits (a level); otherwise 15 px capitals
+  if (digits) txt(port, big, "k", hs.max ? C.yellow : C.white, RC, MM_Y - 11 + dy, "c");
+  else txt(port, big, "r", C.white, RC, MM_Y - 4 + dy, "c");
   if (tag) txt(port, tag, "n", C.cyan, RC, MM_Y + 24, "c");
 }
 // the weather band: icon, temperature, high/low and rain chance in one row, dropping the least

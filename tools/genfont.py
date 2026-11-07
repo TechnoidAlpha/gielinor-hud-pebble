@@ -167,13 +167,20 @@ for ch, art in {
 for c in "abcdefghijklmnopqrstuvwxyz": N[c] = N[c.upper()]
 NCHARS = sorted(N, key=ord)
 
-def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=CAP):
+def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=CAP, even=False):
+    """even: centred text lands on the true centre. Each glyph is cut to its ink and the one
+    art-pixel gap between letters is split either side of it (xoffset s//2), instead of all
+    after it, so a string's ink sits in the middle of its measured width (to half a pixel)."""
     table = G if table is None else table
     items = []
     for ch in chars:
         rows = table[ch]
-        w = len(rows[0])
         on = [(x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c == "#"]
+        if even and on:
+            x0 = min(x for x, _ in on)
+            rows = [r[x0:max(x for x, _ in on) + 1] for r in rows]
+            on = [(x - x0, y) for x, y in on]
+        w = len(rows[0])
         adv = (w + 1) * s
         if not on:
             items.append((ch, None, 0, 0, adv)); continue
@@ -183,7 +190,7 @@ def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=
             for dy in range(s):
                 for dx in range(s):
                     im.putpixel((x * s + dx, (y - y0) * s + dy), 255)
-        items.append((ch, im, 0, y0 * s, adv))
+        items.append((ch, im, s // 2 if even else 0, y0 * s, adv))
     # identical bitmaps share one atlas spot (px-n's lowercase letters are its capitals)
     same = {}
     for i, it in enumerate(items):
@@ -226,7 +233,7 @@ if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     build("px-n", NCHARS, 2, "GielinorPx N", table=N, nrows=N_ROWS, base_row=N_CAP, cap=N_CAP)
     # Pebble Round 2 only (see manifest.json): the same glyphs, bigger, for its round layout
-    build("px-n3", NCHARS, 3, "GielinorPx N3", table=N, nrows=N_ROWS, base_row=N_CAP, cap=N_CAP)
-    build("px-c5", CLOCK, 5, "GielinorPx Clock 5")
+    build("px-n3", NCHARS, 3, "GielinorPx N3", table=N, nrows=N_ROWS, base_row=N_CAP, cap=N_CAP, even=True)
+    build("px-c5", CLOCK, 5, "GielinorPx Clock 5", even=True)
     build("px-m", FULL, 2, "GielinorPx M")
     build("px-clk", CLOCK, 4, "GielinorPx Clock")

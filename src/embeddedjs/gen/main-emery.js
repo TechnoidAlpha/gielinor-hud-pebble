@@ -658,6 +658,8 @@ function drawChat(port, d, b, h, hs) {
 
 
 
+
+
 // The still parts of the face (the C start frame's picture, see roundStill / squareStill), and
 // the whole face; each watch's build carries only its own layout.
 function drawStill(port) { if (ROUND) roundStill(port); else squareStill(port); }
