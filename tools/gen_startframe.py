@@ -20,8 +20,13 @@ NEED = {
     "clk": "0123456789:",
     "m": "0123456789 SunMonTueWedThuFriSatJanFebMarAprMayJunJulAugSepOctNovDec",
     "n": "Gielinor: ",
+    # Pebble Round 2: the clock and the date (px-n3 maps lowercase to its capitals)
+    "c5": "0123456789:",
+    "n3": "0123456789 SunMonTueWedThuFriSatJanFebMarAprMayJunJulAugSepOctNovDec",
 }
-FILES = {"clk": "px-clk", "m": "px-m", "n": "px-n"}
+FILES = {"clk": "px-clk", "m": "px-m", "n": "px-n", "c5": "px-c5", "n3": "px-n3"}
+# each watch's C build carries only the fonts its start frame draws
+GUARD = {"clk": "#ifndef PBL_ROUND", "m": "#ifndef PBL_ROUND", "n": "#ifndef PBL_ROUND", "c5": "#ifdef PBL_ROUND", "n3": "#ifdef PBL_ROUND"}
 
 
 def read_fnt(path):
@@ -65,8 +70,9 @@ def render():
            "#pragma once",
            "typedef struct { uint8_t ch, w, h; int8_t xo, yo; uint8_t xa; uint16_t off; } SfGlyph;",
            "typedef struct { const SfGlyph *g; uint8_t n; const uint8_t *bits; } SfFont;"]
-    for key in ("clk", "m", "n"):
+    for key in ("clk", "m", "n", "c5", "n3"):
         bits, glyphs = font_table(key)
+        out.append(GUARD[key])
         out.append("static const uint8_t SF_%s_BITS[%d] = {" % (key.upper(), len(bits)))
         for k in range(0, len(bits), 24):
             out.append("  " + ",".join("0x%02x" % v for v in bits[k:k + 24]) + ",")
@@ -76,6 +82,7 @@ def render():
             out.append("  {%d,%d,%d,%d,%d,%d,%d}," % g)
         out.append("};")
         out.append("static const SfFont SF_%s = { SF_%s_G, %d, SF_%s_BITS };" % (key.upper(), key.upper(), len(glyphs), key.upper()))
+        out.append("#endif")
     return "\n".join(out) + "\n"
 
 

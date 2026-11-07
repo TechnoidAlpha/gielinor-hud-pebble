@@ -49,10 +49,13 @@ static void disc(int cx, int cy, int r, uint32_t col) {
     fill(col, cx - k, cy + dy, k * 2 + 1, 1);
   }
 }
-// main.js icon() at scale 1 (the orb glyphs): "07" then rows, '.' = transparent
+// main.js icon() at scale 1 (the Time 2 orb glyphs): "07" then rows, '.' = transparent
+#ifndef PBL_ROUND
 static void glyph7(const char *ic, int x, int y, uint32_t col) {
   for (int p = 0; p < 49; p++) if (ic[2 + p] != '.') fill(col, x + p % 7, y + p / 7, 1, 1);
 }
+#endif
+#ifndef PBL_ROUND
 // one status orb as main.js orb() draws it before any data: value plate, empty socket, glyph with
 // its dark outline. flip puts the plate on the right (the round layout's right-hand orbs).
 static void orb_still(int x, int y, const char *g, bool flip) {
@@ -65,6 +68,7 @@ static void orb_still(int x, int y, const char *g, bool flip) {
   glyph7(g, cx - 3, cy - 4, 0x000000); glyph7(g, cx - 3, cy - 2, 0x000000);
   glyph7(g, cx - 3, cy - 3, 0xFFFFFF);
 }
+#endif
 // text from the generated atlases: width = sum of advances, as Poco measures it
 static const SfGlyph *find(const SfFont *f, char c) {
   for (int i = 0; i < f->n; i++) if (f->g[i].ch == (uint8_t)c) return &f->g[i];
@@ -119,7 +123,19 @@ static void clock_text(char *buf, size_t n, struct tm *t) {
 
 #ifdef PBL_ROUND
 // ---------------------------------------------------------------- Round 2: the minimap layout
+// main.js roundStill(): the stone frame, the clock viewport with the clock and date, the minimap,
+// the four bigger orbs, the chatbox band and the weather band. Constants follow main.js.
 #define RC (W / 2)
+#define CV_Y0 15
+#define CV_Y1 85
+#define CV_HW 84
+#define MM_Y 132
+#define MM_R 44
+#define CH_Y 179
+#define WX_Y 213
+#define RO_R 12
+#define RO_PW 46
+#define RO_PH 23
 // main.js chord(y, r): floor(sqrt(r^2 - (y + 0.5 - RC)^2)) = floor(isqrt(4r^2 - (2y + 1 - 2RC)^2) / 2)
 static int chord_r(int y, int r) {
   int d = 2 * y + 1 - 2 * RC, v = 4 * r * r - d * d, k = 0;
@@ -127,17 +143,22 @@ static int chord_r(int y, int r) {
   while ((k + 1) * (k + 1) <= v) k++;
   return k / 2;
 }
-static int chord(int y) { return chord_r(y, RC); }
-// main.js roundBand(): rows y0..y1 clipped to the circle, edge colour on the first and last row,
-// and hi on the second row when has_hi
+// main.js roundBand(): rows y0..y1 clipped to the screen circle; edge on the first and last row,
+// hi on the second when has_hi
 static void round_band(int y0, int y1, uint32_t fillc, uint32_t edge, bool has_hi, uint32_t hi) {
   for (int y = y0; y <= y1; y++) {
-    int h = chord(y);
+    int h = chord_r(y, RC);
     if (h) fill(y == y0 || y == y1 ? edge : (has_hi && y == y0 + 1) ? hi : fillc, RC - h, y, 2 * h, 1);
   }
 }
-// main.js roundBackdrop(): dark outer line, lit edge, stone, and the fixed grain scatter
-static void round_backdrop(void) {
+// main.js icon() at scale 2 for the 7x7 orb glyphs
+static void glyph7x2(const char *ic, int x, int y, uint32_t col) {
+  for (int p = 0; p < 49; p++) if (ic[2 + p] != '.') fill(col, x + (p % 7) * 2, y + (p / 7) * 2, 2, 2);
+}
+static void draw_start(Layer *layer, GContext *ctx) {
+  s_ctx = ctx;
+  // roundBackdrop: dark outer line, lit edge, stone, the fixed grain scatter
+  fill(0x000000, 0, 0, W, H);
   disc(RC, RC, RC - 1, 0x000000);
   disc(RC, RC, RC - 2, 0xAAAA55);
   disc(RC, RC, RC - 4, 0x555500);
@@ -145,43 +166,41 @@ static void round_backdrop(void) {
     int x = (k * 97 + 13) % 236 + 12, y = (k * 61 + 7) % 236 + 12, dx = x - RC, dy = y - RC;
     if (dx * dx + dy * dy < (RC - 8) * (RC - 8)) fill(0x555555, x, y, 2, 1);
   }
-}
-// main.js drawClock() round: the viewport well (CV_Y0 9 .. CV_Y1 70, CV_HW 78)
-static void round_viewport(void) {
-  for (int y = 9; y <= 70; y++) {
+  // roundClock: the viewport, then the clock and the date
+  for (int y = CV_Y0; y <= CV_Y1; y++) {
     int h = chord_r(y, RC - 8);
-    if (h > 78) h = 78;
+    if (h > CV_HW) h = CV_HW;
     if (!h) continue;
-    bool edge = y == 9 || y == 70;
+    bool edge = y == CV_Y0 || y == CV_Y1;
     fill(edge ? 0x000000 : 0x555555, RC - h - 1, y, 2 * h + 2, 1);
     if (!edge) fill(0x000000, RC - h, y, 2 * h, 1);
   }
-}
-static const char *NORTH = "07..........R.....RRR...RRWRR....W......W..........";   // main.js ICONS.north, unpacked
-static void draw_start(Layer *layer, GContext *ctx) {
-  s_ctx = ctx;
-  fill(0x000000, 0, 0, W, H);
-  round_backdrop();
-  round_viewport();
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   char buf[16];
   clock_text(buf, sizeof buf, t);
-  text_c(&SF_CLK, 4, buf, 0xFFFF00, RC, 18);
+  text_c(&SF_C5, 5, buf, 0xFFFF00, RC, 25);
   snprintf(buf, sizeof buf, "%s %d %s", DOW[t->tm_wday], t->tm_mday, MON[t->tm_mon]);
-  text_c(&SF_M, 2, buf, 0xFFAA00, RC, 51);
-  // the minimap ring (main.js MM_Y 120, MM_R 46) and its compass
-  disc(RC, 120, 46, 0x000000); disc(RC, 120, 45, 0xAAAA55); disc(RC, 120, 44, 0x555500);
-  disc(RC, 120, 41, 0x000000); disc(RC, 120, 40, 0x000000);
-  disc(RC - 32, 120 - 32, 7, 0x000000); disc(RC - 32, 120 - 32, 6, 0x555555);
-  for (int p = 0; p < 49; p++) {
-    char c = NORTH[2 + p];
-    if (c != '.') fill(c == 'R' ? 0xFF0000 : 0xFFFFFF, RC - 35 + p % 7, 120 - 36 + p / 7, 1, 1);
+  text_c(&SF_N3, 3, buf, 0xFFAA00, RC, 65);
+  // roundMinimap
+  disc(RC, MM_Y, MM_R, 0x000000); disc(RC, MM_Y, MM_R - 1, 0xAAAA55); disc(RC, MM_Y, MM_R - 2, 0x555500);
+  disc(RC, MM_Y, MM_R - 7, 0x000000); disc(RC, MM_Y, MM_R - 8, 0x000000);
+  // roundOrb (empty): plate, socket, 2x glyph with its outline; main.js roundOrbSpot()
+  for (int i = 0; i < 4; i++) {
+    bool right = i >= 2;
+    int x = right ? 176 : 10, y = i % 2 ? 142 : 98;
+    int cy = y + RO_PH / 2, cx = right ? x + RO_R : x + RO_PW + 3 + RO_R, px = right ? x + 2 * RO_R + 4 : x;
+    well(px, y, RO_PW, RO_PH);
+    disc(cx, cy, RO_R + 1, 0x000000);
+    disc(cx, cy, RO_R, 0x555555);
+    disc(cx, cy, RO_R - 1, 0x000055);
+    int gx = cx - 7, gy = cy - 6;
+    glyph7x2(ORB_GLYPHS[i], gx - 1, gy, 0x000000); glyph7x2(ORB_GLYPHS[i], gx + 1, gy, 0x000000);
+    glyph7x2(ORB_GLYPHS[i], gx, gy - 1, 0x000000); glyph7x2(ORB_GLYPHS[i], gx, gy + 1, 0x000000);
+    glyph7x2(ORB_GLYPHS[i], gx, gy, 0xFFFFFF);
   }
-  // main.js orbSpot(): Hitpoints and Prayer left, Run and Special right
-  for (int i = 0; i < 4; i++) orb_still(i < 2 ? 18 : 182, i % 2 ? 138 : 90, ORB_GLYPHS[i], i >= 2);
-  round_band(168, 208, 0x555500, 0x000000, true, 0xAAAA55);   // main.js HS_Y .. HS_Y + 40
-  round_band(211, H - 1, 0xFFFFAA, 0xAA5500, false, 0);         // main.js CH_Y
+  round_band(CH_Y, WX_Y - 2, 0xFFFFAA, 0xAA5500, false, 0);
+  round_band(WX_Y, H - 1, 0x555500, 0x000000, true, 0xAAAA55);
 }
 #else
 // ---------------------------------------------------------------- Time 2: the game screen
