@@ -34,6 +34,9 @@ jobs:
       - name: Check the start frame's glyphs match the fonts
         run: uv run --with pillow python3 tools/gen_startframe.py --check
 
+      - name: Check each watch's copy of main.js matches main.js
+        run: python3 tools/gen_layouts.py --check
+
       - name: Check the settings page matches its sources (page, face code, fonts)
         run: python3 tools/gen_settings.py --check
 

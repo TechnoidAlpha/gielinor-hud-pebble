@@ -4,10 +4,11 @@ Versions are `YY.MM.REV`: the year, the month, and the release number within tha
 
 ## v26.11.2
 
-- Pebble Round 2 support (beta): a round layout in the style of the game's minimap, with the clock
-  on top, weather inside the minimap, two orbs either side of it, then the hiscores and chatbox
-  following the curve of the screen. Built and tested on the Round 2 emulator; reports from real
-  watches are very welcome.
+- Pebble Round 2 support (beta): its own layout in the style of the game's minimap, drawn big
+  for the round screen. A 35 px clock and date on top; the minimap shows your hiscore at a glance
+  with your XP to the next level as a ring round it, like the game's XP orb; bigger orbs either
+  side; the chatbox across the middle and the weather at the bottom, all in larger text. Built
+  and tested on the Round 2 emulator; reports from real watches are very welcome.
 - Themes: Classic stone, Dark (the modern client's look) and Bright (easiest to read in sunlight),
   with a live preview of each in Settings
 - Timeline Quick View: the face now makes room for the peek instead of drawing under it
@@ -19,8 +20,8 @@ Versions are `YY.MM.REV`: the year, the month, and the release number within tha
   feels-like temperature, wind, level-ups and the GE price
 - Settings: a Look tab, the kill-count picker and GE item, chatbox switches grouped by topic, and
   the preview shows the round layout when your watch is a Round 2
-- Smaller download: the face's bundle shrank by 6 KB, which keeps memory headroom with all the new
-  features on
+- Lighter on memory: each watch now gets only its own layout and fonts, which keeps headroom with
+  every new feature switched on
 
 ## v26.11.1
 

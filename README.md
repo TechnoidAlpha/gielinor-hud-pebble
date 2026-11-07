@@ -66,7 +66,8 @@ And around it:
 
 - **Three themes:** Classic stone, Dark like the modern client, and Bright for reading in
   sunlight.
-- **Pebble Round 2 (beta):** its own round layout in the style of the game's minimap.
+- **Pebble Round 2 (beta):** its own round layout in the style of the game's minimap, with bigger
+  text and an XP ring.
   [More](#pebble-round-2-beta)
 - **Settings with a live preview** of the face, so you see every change as you make it.
   [More](#settings)
@@ -159,14 +160,20 @@ setting.
 
 ## Pebble Round 2 (beta)
 
-On the round screen the face gets its own layout, modelled on the game's minimap: the clock on
-top, the weather inside a minimap with its compass, two orbs either side, then the hiscores and the
-chatbox following the curve. Every setting works the same, and Quick View gets a band across the
-middle while the chatbox stays below it.
+On the round screen the face gets its own layout, drawn bigger to suit it:
 
-It's built and tested on the Round 2 emulator, but I don't have a Round 2 to try it on. If you do,
-please [open an issue](https://github.com/TechnoidAlpha/gielinor-hud-pebble/issues) with a photo,
-good or bad.
+- **Clock:** a 35 px clock and the date in a viewport shaped like the top of the screen.
+- **Minimap:** your hiscore at a glance, the skill's icon and its level in big digits (or your
+  kill count, GE price or today's XP), with your progress to the next level as a ring round the
+  rim, like the game's XP orb.
+- **Orbs:** bigger, two either side of the minimap.
+- **Chatbox and weather:** the chatbox runs across the wide middle of the screen and the weather
+  sits at the bottom, both in larger text.
+
+Every setting works the same. It's built and tested on the Round 2 emulator, but I don't have a
+Round 2 to try it on. If you do, please
+[open an issue](https://github.com/TechnoidAlpha/gielinor-hud-pebble/issues) with a photo, good or
+bad.
 
 <p align="center"><img src="docs/screenshots/round-dark.png" width="230" alt="Pebble Round 2, Dark theme"> <img src="docs/screenshots/round-kc.png" width="230" alt="Pebble Round 2, kill count"></p>
 

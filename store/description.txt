@@ -1,4 +1,4 @@
-Your day as an Old School RuneScape-style game screen, made for the Pebble Time 2, and now the Pebble Round 2 (beta) with its own minimap layout.
+Your day as an Old School RuneScape-style game screen, for the Pebble Time 2 and, new in this version, the Pebble Round 2 (beta).
 
 - Big pixel clock and date
 - Four status orbs: battery, heart rate, steps and sleep, or choose active minutes, distance or calories
@@ -7,10 +7,10 @@ Your day as an Old School RuneScape-style game screen, made for the Pebble Time 
 - Level-up moments, and a helm beside your name for Ironman, Hardcore and Ultimate accounts
 - A chatbox with a rain countdown, steps left to your goal, XP to your next level and more
 - Three themes: Classic stone, Dark, and Bright for sunlight
-- Makes room for Timeline Quick View
+- On the Pebble Round 2: its own minimap layout with bigger text, and your XP to the next level as a ring round the minimap
 
 Set everything up in Settings, with a live preview of the face. No accounts, no API keys, no ads. All art and fonts are original.
 
-Round 2 owners: I built that layout on the emulator, so please tell me how it looks on your wrist.
+Round 2 owners: the round layout is built on the emulator, so please tell me how it looks on your wrist (GitHub link below).
 
 A free, unofficial fan project, not affiliated with Jagex. Source code and privacy: https://github.com/TechnoidAlpha/gielinor-hud-pebble

@@ -66,17 +66,36 @@ For that hand-over to be invisible the two pictures must match exactly:
 
 - **Time 2 (emery, 200x228):** the game screen, with the clock viewport, the orb column and the
   stone panels.
-- **Round 2 (gabbro, 260x260):** the minimap layout. As on the Time 2, every pixel belongs to
-  the stone frame (`roundBackdrop`: a dark outer line, a lit edge, the stone and a fixed scatter
-  of grain), so nothing floats on bare black. The clock and date sit in a viewport well shaped
-  like the top of the screen (`CV_Y0`..`CV_Y1`, at most `CV_HW` wide), the weather inside a
-  minimap ring with a compass (`MM_Y`, `MM_R`), two orbs either side of it (`orbSpot`;
-  `orb(..., flip)` puts the value plate on the right), then the bevelled hiscores band (`HS_Y`)
-  and the chatbox (`CH_Y`). Shapes are horizontal spans clipped to a circle (`chord(y, r)`,
-  `roundBand`), and chatbox lines wrap to the width the curve allows at each line.
+- **Round 2 (gabbro, 260x260):** the minimap layout, drawn bigger: 15 px capitals (`px-n3`,
+  px-n's glyphs at 3x) and a 35 px clock (`px-c5`). Every pixel belongs to the stone frame
+  (`roundBackdrop`), so nothing floats on bare black. Top to bottom: the clock and date in a
+  viewport shaped like the top of the screen (`CV_*`); the minimap (`MM_Y`, `MM_R`) holding your
+  hiscore at a glance (skill icon and level in 35 px digits, or a kill count, price or today's
+  XP), with the XP to the next level as a ring round its rim (`xpRing`), like the game's XP orb;
+  two bigger orbs either side (`roundOrb`, 2x glyphs); the chatbox across the wide middle of the
+  screen (`CH_Y`), wrapped to the curve; and the weather in the bottom band (`WX_Y`), dropping
+  the high/low first when the row is too wide. Shapes are rows clipped to a circle (`chord(y, r)`,
+  `roundBand`).
+
+The Round 2 is about 200 ppi, the same density as the Time 2, but the screen is smaller and round,
+so the first round layout (10 px text in a minimap) read as small. The redesign trades density for
+size: fewer things, each bigger.
+
+### One layout per watch build
+
+`main.js` holds both layouts between `// ==== layout: square|round begin/end ====` markers, and
+the settings preview and `tools/test_face.js` use it whole. Each watch's build carries only its
+own: `tools/gen_layouts.py` writes `src/embeddedjs/gen/main-emery.js` and `main-gabbro.js` (the
+other layout blanked out, so line numbers still match), `manifest.json` points each platform at
+its copy, and each platform gets only its own fonts. pebble-tool compiles the JS (`mcrun`) before
+`wscript` runs, so the copies are committed (a fresh clone needs them), `wscript` runs the
+generator and, when a copy changed, runs `mcrun` again the same way pebble-tool does, and CI
+fails if they're stale (`gen_layouts.py --check`). The test suite checks that neither layout block uses anything defined
+only in the other.
 
 The C start frame has a matching branch for each (`#ifdef PBL_ROUND` in `mdbl.c`, with the same
-`chord` done in integers), and `startframe_diff.sh` checks both.
+`chord` done in integers, and only that watch's glyph tables from `startframe.h`), and
+`startframe_diff.sh` checks both.
 
 ## Timeline Quick View
 
@@ -84,7 +103,7 @@ The `resize` event carries no value on this SDK, but Piu shrinks the app to the 
 screen that's still visible. So the listener reads `app.height`: 228 → 170 on the Time 2
 emulator, a 58 px peek. The Time 2 then drops the chatbox and draws the hiscores panel at
 whatever height is left (title and XP bar). On the round screen the peek is a band across the
-middle, so the hiscores band gives way and the chatbox stays below it.
+middle; the round face draws as normal and the peek simply sits over it.
 
 ## Themes
 
@@ -113,21 +132,27 @@ Measured on the SDK 4.33 emulator as OS heap "Used" at app exit, out of 122568 b
 
 | version, mod size | slot / chunk | Used | Left for PebbleOS |
 |-------------------|--------------|------|-------------------|
-| v26.11.1, 41 KB | 34816 / 40960 | 117052 | ~5 KB, too tight |
-| v26.11.1, 41 KB | 28672 / 32768 | 102716 | ~20 KB |
-| v26.11.2 draft, 48.6 KB | 28672 / 32768 | `fxMapArchive failed` | none: the mod couldn't map |
-| **v26.11.2, 42.7 KB** (shipped) | **30720 / 26624** | 109176 | see below |
+| v26.11.1, 41 KB | 34816 / 40960 | 117052 of 122568 | ~5 KB, too tight |
+| v26.11.1, 41 KB | 28672 / 32768 | 102716 of 122568 | ~20 KB |
+| v26.11.2 draft, both layouts in each build (47 KB) | 32768 / 26624 | 115816 of 118560 | ~2.7 KB, too tight |
+| **v26.11.2 emery, 42.1 KB** | **30720 / 26624** | 108044 of 118560 | ~10.5 KB |
+| **v26.11.2 gabbro, 43.6 KB** | **31744 / 26624** | 110900 of 118560 | ~7.6 KB |
 
-The numbers are the same on emery and gabbro, and the v26.11.2 figure is with real data for both
-games, a kill count, a GE price and every chatbox message on. Slot is the tight one: the module's
-functions and tables need about 28 KB just to start (27648 fails with "Slot allocation: failed",
-28672 starts with under 1 KB spare), so the record gives it 30720. The useful real-hardware
-limit comes from ClaudeUsageRings on a PT2: heaps plus mod hung at about 115.7 KB and worked at
-113.7 KB. Here they come to 63.5 + 42.7 = 106.2 KB. The mod went from 48.6 KB back to 42.7 KB by dropping the
-SDK's TypeScript typings include (2.4 KB of `tsconfig` modules the face never used), sharing atlas
-spots between identical glyphs (px-n's lowercase letters are its capitals) and run-length coding
-the icons, and the sample data for screenshots is now built only when asked (it cost slot in
-every release build). Re-check on real hardware before raising either number.
+The v26.11.2 figures are worst cases: real data for both games, a kill count, a GE price and
+every chatbox message on. Slot is the tight heap, because the module's functions and tables need
+it just to start: emery starts from 28672 (27648 fails with "Slot allocation: failed"), gabbro
+from 29696, and each record adds about 2 KB. What brought it back from "too tight":
+
+- each watch builds only its own layout and fonts (above), which also cuts the functions slot
+  has to hold;
+- no SDK TypeScript typings include (2.4 KB of `tsconfig` modules the face never used);
+- identical glyphs share atlas spots (px-n's lowercase letters are its capitals);
+- the icons are run-length coded;
+- the screenshot sample data is built only when asked.
+
+ClaudeUsageRings found the real PT2 hangs with heaps plus mod at about 115.7 KB and works at
+113.7 KB; here it's 105.6 KB (emery) and 108.1 KB (gabbro). Re-check on real hardware before
+raising either number.
 
 ## Settings page
 
