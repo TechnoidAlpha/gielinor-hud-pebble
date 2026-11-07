@@ -48,7 +48,7 @@ def render():
     page = open(PAGE, encoding="utf-8").read()
     page = re.sub(r"<!--.*?-->\n?", "", page, count=1, flags=re.S)        # the header comment
     page = "\n".join(l.strip() for l in page.split("\n") if l.strip())
-    fonts = {n: font(n) for n in ("px-n", "px-m", "px-clk")}
+    fonts = {n: font(n) for n in ("px-n", "px-m", "px-clk", "px-n3", "px-c5")}
     for token in ("/*FACE*/", "/*FONTS*/null"):
         if page.count(token) != 1:
             sys.exit("settings.html must contain %s exactly once" % token)

@@ -7,9 +7,25 @@
   },
   "resources": {
     "*-alpha": [
-      "./fonts/px-n",
-      "./fonts/px-m",
-      "./fonts/px-clk"
+      "./fonts/px-n"
     ]
+  },
+  "platforms": {
+    "pebble/emery": {
+      "resources": {
+        "*-alpha": [
+          "./fonts/px-m",
+          "./fonts/px-clk"
+        ]
+      }
+    },
+    "pebble/gabbro": {
+      "resources": {
+        "*-alpha": [
+          "./fonts/px-n3",
+          "./fonts/px-c5"
+        ]
+      }
+    }
   }
 }

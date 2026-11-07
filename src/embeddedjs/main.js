@@ -67,6 +67,9 @@ const F = {
   n: [new Style({ font: "px-n" }), 2],   // capitals 3x5 at 2x: 10 px caps, the small text
   m: [new Style({ font: "px-m" }), 2],
   c: [new Style({ font: "px-clk" }), 4],
+  // Pebble Round 2 only (each watch's build carries just its own fonts, see manifest.json)
+  r: [new Style({ font: "px-n3" }), 3],   // capitals 3x5 at 3x: 15 px caps, the round layout's text
+  k: [new Style({ font: "px-c5" }), 5],   // digits at 5x: 35 px, the round clock and big numbers
 };
 
 // ---------------------------------------------------------------- icons
@@ -374,78 +377,18 @@ function clockString(d) {
 }
 function dateString(d) { return DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()]; }
 function drawClock(port, d) {
-  if (ROUND) {
-    // the viewport: a dark well shaped like the top of the screen, as the Time 2's clock panel
-    for (let y = CV_Y0; y <= CV_Y1; y++) {
-      const h = Math.min(CV_HW, chord(y, RC - 8));
-      if (!h) continue;
-      const edge = y === CV_Y0 || y === CV_Y1;
-      port.fillColor(edge ? C.stoneLo : C.stoneMid, RC - h - 1, y, 2 * h + 2, 1);
-      if (!edge) port.fillColor(C.inset, RC - h, y, 2 * h, 1);
-    }
-    txt(port, clockString(d), "c", C.yellow, RC, 18, "c");
-    txt(port, dateString(d), "m", C.orange, RC, 51, "c");
-    return;
-  }
   panel(port, 0, 0, 134, 92);
   well(port, 5, 5, 124, 82);
   txt(port, clockString(d), "c", C.yellow, 67, 14, "c");
   txt(port, dateString(d), "m", C.orange, 67, 58, "c");
 }
 const ORB_GLYPHS = ["heart", "pray", "boot", "moon"];
-// where the four orbs sit: [x, y] for orb(), and which side the value plate is on
-function orbSpot(i) {
-  if (!ROUND) return [137, 2 + 22 * i, 0];
-  const left = i < 2;                                  // Hitpoints and Prayer left, Run and Special right
-  return [left ? 18 : 182, (i % 2 ? 138 : 90), left ? 0 : 1];   // orb centres 68 / 192, either side of the minimap
-}
-// round: the minimap ring that holds the weather, and the stone band behind the hiscores
-// minimap centre and radius; HS_Y = top of the hiscores band, CH_Y = top of the chatbox band
-const MM_Y = 120, MM_R = 46, HS_Y = 168, CH_Y = 211;
-// round: the clock viewport's rows and its widest half-width
-const CV_Y0 = 9, CV_Y1 = 70, CV_HW = 78;
-function minimap(port) {
-  disc(port, RC, MM_Y, MM_R, C.stoneLo);
-  disc(port, RC, MM_Y, MM_R - 1, C.stoneHi);
-  disc(port, RC, MM_Y, MM_R - 2, C.stone);
-  disc(port, RC, MM_Y, MM_R - 5, C.stoneLo);
-  disc(port, RC, MM_Y, MM_R - 6, C.inset);
-  // compass rose on the rim, top left: a small north pointer as on the game's minimap
-  disc(port, RC - 32, MM_Y - 32, 7, C.stoneLo);
-  disc(port, RC - 32, MM_Y - 32, 6, C.stoneMid);
-  icon(port, "north", RC - 35, MM_Y - 36, 1);
-}
-// rows y0..y1 clipped to the circle; edge on the first and last row, hi (if given) on the second
-function roundBand(port, y0, y1, fill, edge, hi) {
-  for (let y = y0; y <= y1; y++) {
-    const h = chord(y);
-    if (h) port.fillColor(y === y0 || y === y1 ? edge : hi && y === y0 + 1 ? hi : fill, RC - h, y, 2 * h, 1);
-  }
-}
-// round: the whole screen is one stone frame (as on the Time 2, every pixel belongs to a panel):
-// a dark outer line, a lit edge, the stone, and a fixed scatter of grain
-function roundBackdrop(port) {
-  disc(port, RC, RC, RC - 1, C.stoneLo);
-  disc(port, RC, RC, RC - 2, C.stoneHi);
-  disc(port, RC, RC, RC - 4, C.stone);
-  for (let k = 0; k < 150; k++) {
-    const x = (k * 97 + 13) % 236 + 12, y = (k * 61 + 7) % 236 + 12, dx = x - RC, dy = y - RC;
-    if (dx * dx + dy * dy < (RC - 8) * (RC - 8)) port.fillColor(C.grain, x, y, 2, 1);
-  }
-}
 // The still parts of the face, exactly as the C start frame paints them (src/c/mdbl.c): shown
 // until the saved data is restored, so the hand-over from C changes nothing on screen.
 function drawStill(port) {
+  if (ROUND) { roundStill(port); return; }
   port.fillColor(C.bg, 0, 0, W, H);
-  if (ROUND) roundBackdrop(port);
   drawClock(port, new Date());
-  if (ROUND) {
-    minimap(port);
-    for (let i = 0; i < 4; i++) { const o = orbSpot(i); orb(port, o[0], o[1], 0, C.grey, C.grey, ORB_GLYPHS[i], "", C.grey, o[2]); }
-    roundBand(port, HS_Y, HS_Y + 40, C.stone, C.stoneLo, C.stoneHi);
-    roundBand(port, CH_Y, H - 1, C.parch, C.parchLo);
-    return;
-  }
   panel(port, 134, 0, 66, 92);
   for (let i = 0; i < 4; i++) orb(port, 137, 2 + 22 * i, 0, C.grey, C.grey, ORB_GLYPHS[i], "", C.grey);
   panel(port, 0, 92, W, 48);
@@ -456,44 +399,28 @@ function drawStill(port) {
 }
 
 function drawFace(port) {
-  port.fillColor(C.bg, 0, 0, W, H);
   const d = new Date(), b = batt(), h = health(), hs = hiscoreView(d);
-  if (ROUND) roundBackdrop(port);
+  if (ROUND) { roundFace(port, d, b, h, hs); return; }
+  port.fillColor(C.bg, 0, 0, W, H);
   drawClock(port, d);
-  if (ROUND) minimap(port); else panel(port, 134, 0, 66, 92);
+  panel(port, 134, 0, 66, 92);
   for (let i = 0; i < 4; i++) {
-    const m = cfg.orbs[i] || ORB_DEFAULT[i], v = orbValue(m, b, h), o = orbSpot(i);
-    orb(port, o[0], o[1], v.f, ORB_LOOK[i][0], ORB_LOOK[i][1], ORB_LOOK[i][2], v.l, v.c, o[2]);
+    const m = cfg.orbs[i] || ORB_DEFAULT[i], v = orbValue(m, b, h);
+    orb(port, 137, 2 + 22 * i, v.f, ORB_LOOK[i][0], ORB_LOOK[i][1], ORB_LOOK[i][2], v.l, v.c);
   }
   drawWeather(port);
   // with Timeline Quick View up the chatbox gives way, and the hiscores shrink to fit what's left
   const room = H - peek;
-  if (ROUND) {
-    // on the round screen the peek is a band across the middle: the chatbox below it stays visible
-    if (room > HS_Y + 40) drawHiscores(port, hs, HS_Y, false);
-    drawChat(port, d, b, h, hs);
-    return;
-  }
   drawHiscores(port, hs, 140, room < 192);
   if (room >= H) drawChat(port, d, b, h, hs);
 }
 
-// ---- weather: the panel on the Time 2, the inside of the minimap on the round screen
+// ---- weather (Time 2): the panel under the clock
+// older than 3 hours (phone offline, API refusing) it greys out and says how old
+function weatherAge(w) { const age = w && w.at ? Date.now() / 1000 - w.at : 0; return [age, age > 3 * 3600]; }
 function drawWeather(port) {
-  const w = data.w;
-  // older than 3 hours (phone offline, API refusing): grey it out and say how old
-  const age = w && w.at ? Date.now() / 1000 - w.at : 0, stale = age > 3 * 3600;
+  const w = data.w, ag = weatherAge(w), age = ag[0], stale = ag[1];
   const pS = w ? w.p + "%" : "", mark = w && w.c === "snow" ? "flake" : "drop";
-  if (ROUND) {
-    if (!w) { txt(port, "Weather...", "n", C.grey, RC, MM_Y - 5, "c"); return; }
-    icon(port, w.c || "cloud", RC - 12, MM_Y - 38, 2);
-    txt(port, w.t + "°", "m", stale ? C.grey : C.yellow, RC + 2, MM_Y - 11, "c");
-    txt(port, "H" + w.hi + " L" + w.lo, "n", stale ? C.grey : C.orange, RC + 1, MM_Y + 8, "c");
-    const pw = tw(port, pS, "n") + 10;
-    icon(port, mark, RC - (pw >> 1), MM_Y + 23, 2, stale ? C.grey : undefined);
-    txt(port, pS, "n", stale ? C.grey : C.cyan, RC - (pw >> 1) + 10, MM_Y + 22, "l");
-    return;
-  }
   panel(port, 0, 92, W, 48);
   if (w) {
     well(port, 5, 97, 30, 38);
@@ -511,16 +438,14 @@ function drawWeather(port) {
   }
 }
 
-// ---- hiscores: panel at y (Time 2) or the stone band (round); compact = title and bar only
+// ---- hiscores (Time 2): the panel at y; compact = title and bar only
 const HELM = { iron: "#AAAAAA", hcim: "#FF0000", uim: "#FFFFFF" };
 function drawHiscores(port, hs, y, compact) {
   // x0..x1 = the text column, ix = icon well
-  let x0 = 40, x1 = W - 7, ix = 5;
-  if (ROUND) { roundBand(port, y, y + 40, C.stone, C.stoneLo, C.stoneHi); x0 = 66; x1 = 228; ix = 32; }
-  else panel(port, 0, y, W, compact ? Math.min(37, H - peek - y) : 52);
-  if (hs.msg) { ptxt(port, hs.msg, "n", C.pDim, W >> 1, y + (ROUND ? 16 : compact ? 13 : 20), "c"); return; }
-  // rows: title, bar, then the sub line; tighter on the round band so the sub line clears the chatbox
-  const ty = y + (ROUND ? 2 : 6), barDy = ROUND ? 17 : 18, subDy = ROUND ? 26 : 29;
+  const x0 = 40, x1 = W - 7, ix = 5;
+  panel(port, 0, y, W, compact ? Math.min(37, H - peek - y) : 52);
+  if (hs.msg) { ptxt(port, hs.msg, "n", C.pDim, W >> 1, y + (compact ? 13 : 20), "c"); return; }
+  const ty = y + 6, barDy = 18, subDy = 29;
   well(port, ix, ty - 1, 28, 28);
   icon(port, hs.icon, ix + 4, ty + 3, 2);
   ptxt(port, hs.title, "m", C.pTitle, x0, ty, "l");
@@ -551,24 +476,175 @@ function drawHiscores(port, hs, y, compact) {
   }
 }
 
-// ---- chatbox: parchment strip with the speaker (Time 2), or two centred lines in the curve
+// ---- chatbox (Time 2): parchment strip with the speaker
 function drawChat(port, d, b, h, hs) {
   const msg = chatMessage(d, b, h, hs);
-  if (ROUND) {
-    roundBand(port, CH_Y, H - 1, C.parch, C.parchLo);
-    const l1 = CH_Y + 5, l2 = CH_Y + 19;               // two centred lines, each as wide as the curve allows
-    const lines = wrap(port, msg, [2 * chord(l1 + 10) - 12, 2 * chord(l2 + 10) - 12]);
-    if (lines[0]) txtFlat(port, lines[0], "n", C.ink, RC, l1, "c");
-    if (lines[1]) txtFlat(port, lines[1], "n", C.ink, RC, l2, "c");
-    return;
-  }
   port.fillColor(C.parchLo, 0, 192, W, H - 192);
   port.fillColor(C.parch, 2, 194, W - 4, H - 196);
   const who = "Gielinor: ", whoW = tw(port, who, "n");
-  const lines = wrap(port, msg, [W - 12 - whoW, W - 12]);
+  const lines = wrap(port, msg, [W - 12 - whoW, W - 12], "n");
   txtFlat(port, who, "n", C.inkBlue, 6, 198, "l");
   if (lines[0]) txtFlat(port, lines[0], "n", C.ink, 6 + whoW, 198, "l");
   if (lines[1]) txtFlat(port, lines[1], "n", C.ink, 6, 212, "l");
+}
+
+// ================================================================ Pebble Round 2 (260x260)
+// The minimap layout, drawn bigger than the Time 2's: text is 15 px capitals (px-n3) and the
+// clock 35 px (px-c5). Top to bottom:
+//   the clock and date in a viewport shaped like the top of the screen;
+//   the minimap: your hiscore at a glance (skill icon, big level), with the XP to the next level
+//   as a ring round its rim, like the game's XP orb; two orbs either side of it;
+//   the chatbox across the wide middle of the screen, then the weather in the bottom band.
+// Every pixel belongs to the stone frame, so nothing floats on bare black.
+const CV_Y0 = 15, CV_Y1 = 85, CV_HW = 84;               // clock viewport rows, widest half-width
+const MM_Y = 132, MM_R = 44;                            // minimap centre and outer radius
+const CH_Y = 179, WX_Y = 213;                           // chatbox band, weather band (top rows)
+// round orb: socket radius 12 with a 2x glyph, a value plate 46x23 beside it
+const RO_R = 12, RO_PW = 46, RO_PH = 23;
+// orb i: [x, y] of its plate+socket box (74 wide), and whether the plate is on the right
+function roundOrbSpot(i) {
+  const left = i < 2;                                   // Hitpoints and Prayer left, Run and Special right
+  return [left ? 10 : 176, i % 2 ? 142 : 98, !left];
+}
+function roundBand(port, y0, y1, fill, edge, hi) {      // rows y0..y1 clipped to the circle
+  for (let y = y0; y <= y1; y++) {
+    const h = chord(y);
+    if (h) port.fillColor(y === y0 || y === y1 ? edge : hi && y === y0 + 1 ? hi : fill, RC - h, y, 2 * h, 1);
+  }
+}
+// the stone frame: dark outer line, lit edge, stone, a fixed scatter of grain
+function roundBackdrop(port) {
+  port.fillColor(C.bg, 0, 0, W, H);
+  disc(port, RC, RC, RC - 1, C.stoneLo);
+  disc(port, RC, RC, RC - 2, C.stoneHi);
+  disc(port, RC, RC, RC - 4, C.stone);
+  for (let k = 0; k < 150; k++) {
+    const x = (k * 97 + 13) % 236 + 12, y = (k * 61 + 7) % 236 + 12, dx = x - RC, dy = y - RC;
+    if (dx * dx + dy * dy < (RC - 8) * (RC - 8)) port.fillColor(C.grain, x, y, 2, 1);
+  }
+}
+function roundViewport(port) {
+  for (let y = CV_Y0; y <= CV_Y1; y++) {
+    const h = Math.min(CV_HW, chord(y, RC - 8));
+    if (!h) continue;
+    const edge = y === CV_Y0 || y === CV_Y1;
+    port.fillColor(edge ? C.stoneLo : C.stoneMid, RC - h - 1, y, 2 * h + 2, 1);
+    if (!edge) port.fillColor(C.inset, RC - h, y, 2 * h, 1);
+  }
+}
+function roundClock(port, d) {
+  roundViewport(port);
+  txt(port, clockString(d), "k", C.yellow, RC, 25, "c");
+  txt(port, dateString(d), "r", C.orange, RC, 65, "c");
+}
+// the minimap: stone rim (which carries the XP ring) round a dark well, compass on the rim
+function roundMinimap(port) {
+  disc(port, RC, MM_Y, MM_R, C.stoneLo);
+  disc(port, RC, MM_Y, MM_R - 1, C.stoneHi);
+  disc(port, RC, MM_Y, MM_R - 2, C.stone);
+  disc(port, RC, MM_Y, MM_R - 7, C.stoneLo);
+  disc(port, RC, MM_Y, MM_R - 8, C.inset);
+}
+// the XP ring: rows of the annulus between radii r0 and r1, lit clockwise from 12 o'clock up to
+// frac of the way round; the rest is the bar's dark red
+function xpRing(port, frac, max) {
+  const r0 = MM_R - 6, r1 = MM_R - 2, lit = max ? "#AAAA00" : C.xpFill, rest = C.xpBack;
+  const end = frac * 2 * Math.PI;
+  for (let dy = -r1; dy <= r1; dy++) {
+    for (let dx = -r1; dx <= r1; dx++) {
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r1 * r1 + r1 || d2 < r0 * r0) continue;
+      let a = Math.atan2(dx, -dy); if (a < 0) a += 2 * Math.PI;   // 0 at 12 o'clock, clockwise
+      port.fillColor(a <= end ? lit : rest, RC + dx, MM_Y + dy, 1, 1);
+    }
+  }
+}
+// one round orb: value plate beside a bigger socket, fluid level, 2x glyph with a dark outline
+function roundOrb(port, x, y, frac, fluid, fluidLo, glyph, label, labelCol, plateRight) {
+  const cy = y + (RO_PH >> 1), cx = plateRight ? x + RO_R : x + RO_PW + 3 + RO_R, px = plateRight ? x + 2 * RO_R + 4 : x;
+  well(port, px, y, RO_PW, RO_PH);
+  if (label) txt(port, label, "r", labelCol, px + RO_PW - 3 + 3, y + 3, "r");
+  disc(port, cx, cy, RO_R + 1, C.stoneLo);
+  disc(port, cx, cy, RO_R, C.stoneMid);
+  disc(port, cx, cy, RO_R - 1, "#000055");
+  const f = frac < 0 ? 0 : frac > 1 ? 1 : frac;
+  if (f > 0) {
+    const top = cy + (RO_R - 1) - Math.round(f * (2 * (RO_R - 1) + 1)) + 1;
+    disc(port, cx, cy, RO_R - 1, fluidLo, top);
+    disc(port, cx - 1, cy - 1, RO_R - 4, fluid, top);
+  }
+  const gx = cx - 7, gy = cy - 6;
+  icon(port, glyph, gx - 1, gy, 2, "#000000"); icon(port, glyph, gx + 1, gy, 2, "#000000");
+  icon(port, glyph, gx, gy - 1, 2, "#000000"); icon(port, glyph, gx, gy + 1, 2, "#000000");
+  icon(port, glyph, gx, gy, 2);
+}
+// The still frame, exactly as the C start frame paints it (src/c/mdbl.c, PBL_ROUND)
+function roundStill(port) {
+  roundBackdrop(port);
+  roundClock(port, new Date());
+  roundMinimap(port);
+  for (let i = 0; i < 4; i++) { const o = roundOrbSpot(i); roundOrb(port, o[0], o[1], 0, C.grey, C.grey, ORB_GLYPHS[i], "", C.grey, o[2]); }
+  roundBand(port, CH_Y, WX_Y - 2, C.parch, C.parchLo);
+  roundBand(port, WX_Y, H - 1, C.stone, C.stoneLo, C.stoneHi);
+}
+function roundFace(port, d, b, h, hs) {
+  roundBackdrop(port);
+  roundClock(port, d);
+  roundMinimap(port);
+  if (hs.frac !== undefined && !hs.msg) xpRing(port, hs.frac, hs.max);
+  roundHiscore(port, hs);
+  for (let i = 0; i < 4; i++) {
+    const m = cfg.orbs[i] || ORB_DEFAULT[i], v = orbValue(m, b, h), o = roundOrbSpot(i);
+    roundOrb(port, o[0], o[1], v.f, ORB_LOOK[i][0], ORB_LOOK[i][1], ORB_LOOK[i][2], v.l, v.c, o[2]);
+  }
+  roundChat(port, d, b, h, hs);
+  roundWeather(port);
+}
+// inside the minimap's well (radius MM_R - 8): the icon, then the level (or kill count, price,
+// today's xp) as big as fits, and the game's tag when two games share the panel
+function roundHiscore(port, hs) {
+  if (hs.msg) {                                         // short notices, two lines of 15 px caps
+    const l = wrap(port, hs.msg, [66, 66], "r");
+    txt(port, l[0], "r", C.grey, RC, MM_Y - 20, "c");
+    if (l[1]) txt(port, l[1], "r", C.grey, RC, MM_Y, "c");
+    return;
+  }
+  icon(port, hs.icon, RC - 10, MM_Y - 33, 2);
+  const big = hs.big || "";
+  // 35 px digits for a value of up to two digits (a level); otherwise 15 px capitals
+  if (/^[0-9]{1,2}$/.test(big)) txt(port, big, "k", hs.max ? C.yellow : C.white, RC, MM_Y - 11, "c");
+  else txt(port, big, "r", C.white, RC, MM_Y - 4, "c");
+  if (hs.tag) txt(port, hs.tag, "n", C.cyan, RC, MM_Y + 26, "c");
+}
+// the weather band: icon, temperature, high/low and rain chance in one row, dropping the least
+// important parts when the row is too wide for the curve
+function roundWeather(port) {
+  roundBand(port, WX_Y, H - 1, C.stone, C.stoneLo, C.stoneHi);
+  const w = data.w, y = WX_Y + 6;
+  if (!w) { ptxt(port, "Weather...", "r", C.pDim, RC, y, "c"); return; }
+  const stale = weatherAge(w)[1];
+  const parts = [[w.t + "°", stale ? C.pDim : C.pTitle], ["H" + w.hi + " L" + w.lo, stale ? C.pDim : C.pAccent], [w.p + "%", stale ? C.pDim : C.pCool]];
+  const room = 2 * chord(y + 15) - 12, gap = 6, ic = 25, mk = 10;
+  let keep = [0, 1, 2];
+  const width = (k) => ic + k.reduce((a, i) => a + gap + tw(port, parts[i][0], "r") + (i === 2 ? mk : 0), 0);
+  if (width(keep) > room) keep = [0, 2];
+  if (width(keep) > room) keep = [0];
+  let x = RC - (width(keep) >> 1);
+  icon(port, w.c || "cloud", x, y - 4, 2);
+  x += ic;
+  keep.forEach((i) => {
+    x += gap;
+    if (i === 2) { icon(port, w.c === "snow" ? "flake" : "drop", x, y + 2, 2, stale ? C.pDim : undefined); x += mk; }
+    ptxt(port, parts[i][0], "r", parts[i][1], x, y, "l"); x += tw(port, parts[i][0], "r");
+  });
+}
+// the chatbox: one message in 15 px capitals across the curve, wrapped to two lines if needed
+function roundChat(port, d, b, h, hs) {
+  roundBand(port, CH_Y, WX_Y - 2, C.parch, C.parchLo);
+  const l1 = CH_Y + 1, l2 = CH_Y + 17;
+  const lines = wrap(port, chatMessage(d, b, h, hs), [2 * chord(l1 + 15) - 14, 2 * chord(l2 + 15) - 14], "r");
+  if (lines[0]) txtFlat(port, lines[0], "r", C.ink, RC, l1, "c");
+  if (lines[1]) txtFlat(port, lines[1], "r", C.ink, RC, l2, "c");
 }
 
 // What the hiscores panel shows, per mode: title / right / sub / bar fraction / icon, or a msg.
@@ -596,7 +672,7 @@ function hiscoreView(d) {
   const s = bl[blockIndex(d, bl.length)];
   const v = blockView(d, s, sameTick(bl.length) ? bl.length : 1);
   const tag = s && s.gm === "rs3" ? "RS3" : "OSRS";
-  if (bl.length > 1) { if (v.msg) v.msg = tag + ": " + v.msg; else v.name = tag; }   // tag which game this is
+  if (bl.length > 1) { if (v.msg) v.msg = tag + ": " + v.msg; else v.name = v.tag = tag; }   // tag which game this is
   return v;
 }
 // share = how many games take turns on the rotation clock. Each game's skill moves on once per
@@ -607,8 +683,8 @@ function blockView(d, s, share) {
   if (!s.l || !s.r) return { msg: "Hiscores loading..." };
   const n = s.l.length, lu = freshLevelUp(s);
   if (lu && lu[0] < n) {                               // a new level wins the panel for an hour
-    return { icon: "levelup", title: skName(s, lu[0]) + " " + lu[1], right: "", sub: "Level up!", subCol: C.pTitle,
-      name: s.n, ac: s.ac, frac: s.f[lu[0]] / 100, max: s.r[lu[0]] === 0, gm: s.gm };
+    return { icon: "levelup", big: "" + lu[1], max: true, title: skName(s, lu[0]) + " " + lu[1], right: "", sub: "Level up!", subCol: C.pTitle,
+      name: s.n, ac: s.ac, frac: s.f[lu[0]] / 100, gm: s.gm };
   }
   let i = s.gm === "rs3" ? cfg.skill3 : cfg.skill;
   if (cfg.hsMode === "rotate") i = Math.floor(rotSlot(d) / (share || 1)) % n;
@@ -620,13 +696,13 @@ function blockView(d, s, share) {
     let tot = 0, top = -1, topG = 0;
     const g = s.g || [];
     for (let k = 0; k < g.length; k++) { tot += g[k]; if (g[k] > topG) { topG = g[k]; top = k; } }
-    if (top < 0) return { icon: "total", title: "No xp yet today", right: "" + s.tot, rIcon: "total", sub: "Go train something!", name: s.n, ac: s.ac, frac: 0, gm: s.gm };
-    return { icon: skIcon(s, top), title: "+" + kfmt(tot) + " xp today", right: "",
+    if (top < 0) return { icon: "total", big: "+0", title: "No xp yet today", right: "" + s.tot, rIcon: "total", sub: "Go train something!", name: s.n, ac: s.ac, frac: 0, gm: s.gm };
+    return { icon: skIcon(s, top), big: "+" + kfmt(tot), title: "+" + kfmt(tot) + " xp today", right: "",
       sub: skName(s, top) + " +" + kfmt(topG), name: s.n, ac: s.ac, frac: s.f[top] / 100, max: s.r[top] === 0, gm: s.gm };
   }
   if (i < 0 || i >= n) i = 0;
   const lv = s.l[i], max = s.r[i] === 0;
-  return { icon: skIcon(s, i), title: skName(s, i) + " " + lv, right: "" + s.tot, rIcon: "total",
+  return { icon: skIcon(s, i), big: "" + lv, title: skName(s, i) + " " + lv, right: "" + s.tot, rIcon: "total",
     sub: max ? "Maxed!" : kfmt(s.r[i]) + " xp to " + (lv + 1),
     name: s.n, ac: s.ac, frac: max ? 1 : s.f[i] / 100, max: max, skill: i, rem: s.r[i], gm: s.gm, blk: s };
 }
@@ -639,7 +715,7 @@ function kcView(bl) {
   const kc = s.kc;
   if (!kc) return { msg: "Pick a boss or clue in Settings" };
   const clue = kc.l.indexOf("lue") >= 0;
-  return { icon: clue ? "clue" : "boss", title: kc.l, right: kc.s > 0 ? kfmt(kc.s) : "0",
+  return { icon: clue ? "clue" : "boss", big: kc.s > 0 ? kfmt(kc.s) : "0", title: kc.l, right: kc.s > 0 ? kfmt(kc.s) : "0",
     sub: kc.s > 0 ? (kc.k > 0 ? "Rank " + kfmt(kc.k) : "Ranked") : "Not ranked yet", name: s.n, ac: s.ac };
 }
 // Grand Exchange price watch: {n name, p price, c % change on yesterday}
@@ -649,7 +725,7 @@ function geView() {
   if (g.err) return { msg: "GE: " + g.err };
   const up = g.c >= 0;
   // the price goes under the name: a long item name leaves no room beside it
-  return { icon: "coins", title: g.n, right: "", sub: kfmt(g.p) + " gp, " + (up ? "+" : "") + g.c + "% today",
+  return { icon: "coins", big: kfmt(g.p), title: g.n, right: "", sub: kfmt(g.p) + " gp, " + (up ? "+" : "") + g.c + "% today",
     subCol: g.c > 0 ? C.green : g.c < 0 ? C.red : C.pText, name: "GE" };
 }
 
@@ -697,13 +773,13 @@ function chatMessage(d, b, h, hs) {
   return msgs[d.getMinutes() % msgs.length];
 }
 
-// Word-wrap into two lines no wider than widths[0] and widths[1]; "..." marks a cut.
-function wrap(port, s, widths) {
+// Word-wrap into two lines no wider than widths[0] and widths[1] in font f; "..." marks a cut.
+function wrap(port, s, widths, f) {
   const words = s.split(" "), out = ["", ""];
   let li = 0;
   for (let k = 0; k < words.length; k++) {
     const tryS = out[li] ? out[li] + " " + words[k] : words[k];
-    if (tw(port, tryS, "n") <= widths[li]) out[li] = tryS;
+    if (tw(port, tryS, f) <= widths[li]) out[li] = tryS;
     else if (li === 0) { li = 1; out[1] = words[k]; }
     else { out[1] += "..."; break; }
   }

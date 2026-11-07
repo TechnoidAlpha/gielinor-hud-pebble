@@ -11,6 +11,8 @@ terminator the host parser needs):
   px-n    capitals 3x5, 2x  (cap 10px)  small labels, chatbox (own glyph table, N below)
   px-m    full charset, 2x   (cap 14px)  orb values, temperatures, panel headings
   px-clk  digits + colon, 4x (cap 28px)  the clock
+  px-n3   px-n's capitals at 3x (cap 15px)  Round 2: all text but the clock
+  px-c5   digits + colon, 5x (cap 35px)  Round 2: the clock and the big numbers in the minimap
 
 Coverage is hard 0/255 (no anti-aliasing) so the pixels stay crisp; main.js draws each string
 twice (black, offset one art-pixel down-right, then the colour) for the drop shadow.
@@ -223,5 +225,8 @@ def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     build("px-n", NCHARS, 2, "GielinorPx N", table=N, nrows=N_ROWS, base_row=N_CAP, cap=N_CAP)
+    # Pebble Round 2 only (see manifest.json): the same glyphs, bigger, for its round layout
+    build("px-n3", NCHARS, 3, "GielinorPx N3", table=N, nrows=N_ROWS, base_row=N_CAP, cap=N_CAP)
+    build("px-c5", CLOCK, 5, "GielinorPx Clock 5")
     build("px-m", FULL, 2, "GielinorPx M")
     build("px-clk", CLOCK, 4, "GielinorPx Clock")
