@@ -605,10 +605,15 @@ function roundFace(port, d, b, h, hs) {
 // inside the minimap's well (radius MM_R - 8): the icon, then the level (or kill count, price,
 // today's xp) as big as fits, and the game's tag when two games share the panel
 function roundHiscore(port, hs) {
-  if (hs.msg) {                                         // short notices, two lines of 15 px caps
-    const l = wrap(port, hs.msg, [66, 66], "r");
-    txt(port, l[0], "r", C.grey, RC, MM_Y - 20, "c");
-    if (l[1]) txt(port, l[1], "r", C.grey, RC, MM_Y, "c");
+  if (hs.msg) {                                         // notices: up to three centred lines
+    const words = hs.msg.split(" "), lines = [""];
+    for (let k = 0; k < words.length; k++) {
+      const t = lines[lines.length - 1], tryS = t ? t + " " + words[k] : words[k];
+      if (!t || tw(port, tryS, "n") <= 64) lines[lines.length - 1] = tryS;
+      else if (lines.length < 3) lines.push(words[k]);
+      else { lines[2] += "..."; break; }
+    }
+    lines.forEach((l, k) => txt(port, l, "n", C.grey, RC, MM_Y - 7 * lines.length + 14 * k + 1, "c"));
     return;
   }
   icon(port, hs.icon, RC - 10, MM_Y - 33, 2);
@@ -616,7 +621,10 @@ function roundHiscore(port, hs) {
   // 35 px digits for a value of up to two digits (a level); otherwise 15 px capitals
   if (/^[0-9]{1,2}$/.test(big)) txt(port, big, "k", hs.max ? C.yellow : C.white, RC, MM_Y - 11, "c");
   else txt(port, big, "r", C.white, RC, MM_Y - 4, "c");
-  if (hs.tag) txt(port, hs.tag, "n", C.cyan, RC, MM_Y + 26, "c");
+  // a label under the number: the game (with both on), or which boss / item, cut to fit
+  let tag = hs.tag || (hs.icon === "boss" || hs.icon === "clue" || hs.icon === "coins" ? hs.title : "");
+  while (tag && tw(port, tag, "n") > 52) tag = tag.slice(0, -1);
+  if (tag) txt(port, tag, "n", C.cyan, RC, MM_Y + 24, "c");
 }
 // the weather band: icon, temperature, high/low and rain chance in one row, dropping the least
 // important parts when the row is too wide for the curve
