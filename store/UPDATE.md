@@ -36,6 +36,9 @@ Dashboard → **Gielinor HUD** → **Edit**:
   `gabbro_1_hero.png`, `gabbro_2_levelup.png`, `gabbro_3_dark.png`, `gabbro_4_kc.png`,
   `gabbro_5_today.png`.
 - **Banner (720×320, optional):** `banner.png`, which shows both watches.
+- **App Icons:** `icon_80.png` as the Small Icon and `icon_144.png` as the Large Icon (a blue
+  partyhat in the minimap dial, built by `tools/app_icon.py`). Leave *One-bit transparent icon*
+  unticked: they're full colour on a transparent background.
 
 Save. Listing pages can be cached for up to ten minutes, so give it a moment before checking.
 
