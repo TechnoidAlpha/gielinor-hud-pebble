@@ -6,6 +6,7 @@
 #
 #   tools/shots.sh            # all variants
 #   tools/shots.sh today      # only variants whose name contains "today"
+#   PLATFORM=gabbro tools/shots.sh    # the Pebble Round 2 layout; files are named round-<name>.png
 #
 # Output: tools/emu/out/<name>.png (raw) and docs/screenshots/<name>.png (normalised).
 set -uo pipefail
@@ -24,8 +25,9 @@ done
 restore() { git checkout -- "$PKJS" "$MAINJS" 2>/dev/null; rm -f "$REPO"/build/*.pbw; echo "restored sources (build/ pbw deleted - rebuild before installing)"; }
 trap restore EXIT
 
-variant() {   # name mode skill weather-json
-  local name="$1" mode="$2" skill="$3" wx="$4"
+variant() {   # name mode skill weather-json [theme] [levelup]
+  local name="$1" mode="$2" skill="$3" wx="$4" theme="${5:-stone}" lu="${6:-}"
+  [ "${PLATFORM:-emery}" = "gabbro" ] && name="round-$name"
   echo "== $name  (mode=$mode skill=$skill)"
   git checkout -- "$PKJS" "$MAINJS"
   sed -i 's/^const DEMO = false;/const DEMO = true;/' "$MAINJS"
@@ -33,6 +35,9 @@ variant() {   # name mode skill weather-json
   sed -i 's/^var MOCK = false;/var MOCK = true;/' "$PKJS"
   sed -i "s|^var MOCK_W = .*;|var MOCK_W = $wx;|" "$PKJS"
   sed -i "s/hsMode: \"pick\", rotMin: 5,/hsMode: \"$mode\", rotMin: 5,/; s/osrsSkill: 18,/osrsSkill: $skill,/" "$PKJS"
+  sed -i "s/^  theme: \"stone\", helm: true };/  theme: \"$theme\", helm: true };/" "$MAINJS"
+  sed -i "s/^  theme: \"stone\",   /  theme: \"$theme\",   /" "$PKJS"
+  [ -n "$lu" ] && sed -i 's/^const DEMO_LU = false;/const DEMO_LU = true;/' "$MAINJS"
   # every patch must have applied: a silent miss captures the wrong mode
   grep -q "^var MOCK = true;" "$PKJS" && grep -q "^const DEMO = true;" "$MAINJS" &&
     grep -q "^const cfg = { hsMode: \"$mode\", skill: $skill," "$MAINJS" &&
@@ -53,4 +58,10 @@ want next      && variant next      next   18 '{ t: 16, hi: 18, lo: 9, c: "pclou
 want today     && variant today     today  18 '{ t: -2, hi: 1, lo: -5, c: "snow", p: 80, d: "Snow", rt: "11:00" }'
 want storm     && variant storm     pick   6  '{ t: 18, hi: 22, lo: 14, c: "storm", p: 90, d: "Thunderstorm", rt: "16:00" }'
 want night     && variant night     pick   10 '{ t: 9, hi: 13, lo: 6, c: "moonw", p: 0, d: "Clear", rt: "" }'
+# v26.11.2: themes, kill count, GE price, a level-up moment
+want dark      && variant dark      pick   18 '{ t: 14, hi: 17, lo: 9, c: "pcloud", p: 30, d: "Partly cloudy", rt: "" }' dark
+want bright    && variant bright    pick   14 '{ t: 22, hi: 24, lo: 13, c: "sun", p: 0, d: "Clear", rt: "" }' bright
+want kc        && variant kc        kc     18 '{ t: 11, hi: 13, lo: 6, c: "cloud", p: 20, d: "Overcast", rt: "" }'
+want ge        && variant ge        ge     18 '{ t: 16, hi: 18, lo: 10, c: "sun", p: 5, d: "Clear", rt: "" }'
+want levelup   && variant levelup   pick   8  '{ t: 15, hi: 17, lo: 9, c: "pcloud", p: 10, d: "Partly cloudy", rt: "" }' stone lu
 echo "done: $DOCS"

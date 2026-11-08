@@ -3,6 +3,7 @@
 # pixel-identical to what JS paints before its saved data is restored (drawStill in main.js).
 #
 #   tools/startframe_diff.sh
+#   PLATFORM=gabbro tools/startframe_diff.sh    # the Round 2 frame
 #
 # 1. builds with START_FRAME_ONLY (C paints, JS never starts) and captures it;
 # 2. builds with the JS held in its pre-restore state and captures it;
@@ -21,7 +22,7 @@ restore() { git checkout -- "$C" "$MAINJS" 2>/dev/null; rm -f build/*.pbw; }
 trap restore EXIT
 
 build() { rm -f build/*.pbw; pebble build >/dev/null 2>&1 || { echo "build failed ($1)"; exit 1; }; }
-install() { ( setsid --wait timeout 120 pebble install --emulator emery >"$OUT/install.log" 2>&1 ) || { tail -3 "$OUT/install.log"; exit 1; }; sleep 6; }
+install() { ( setsid --wait timeout 120 pebble install --emulator "${PLATFORM:-emery}" >"$OUT/install.log" 2>&1 ) || { tail -3 "$OUT/install.log"; exit 1; }; sleep 6; }
 
 build boot   # emu.sh boot installs the current build
 REPO="$REPO" "$EMU/emu.sh" boot >"$OUT/boot.log" 2>&1 || { echo "emulator boot failed:"; tail -5 "$OUT/boot.log"; exit 1; }
