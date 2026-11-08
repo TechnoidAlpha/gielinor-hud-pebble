@@ -19,7 +19,7 @@ import Message from "pebble/message";
 import Battery from "embedded:sensor/Battery";
 import Health from "pebble/health";
 
-const VERSION = "26.11.1";
+const VERSION = "26.11.2";
 // DEMO fills every panel with sample values so emulator renders show a full board. The phone
 // sends real weather + hiscores; battery/health switch to live sensors when DEMO is false.
 const DEMO = false;
@@ -30,6 +30,9 @@ const DEMO = false;
 const W = screen.width, H = screen.height;
 
 // ---------------------------------------------------------------- colours (64-colour grid)
+// C holds the live palette; applyTheme() overwrites the themed keys. Text that sits in a dark well
+// (clock, date, orb numbers) keeps the fixed colours; text drawn straight on a panel uses the p*
+// keys, so a light theme can turn it dark. The C start frame paints the Classic (stone) theme.
 const C = {
   bg: "#000000",
   stone: "#555500", stoneHi: "#AAAA55", stoneLo: "#000000", stoneMid: "#555555",
@@ -38,7 +41,25 @@ const C = {
   yellow: "#FFFF00", orange: "#FFAA00", white: "#FFFFFF", green: "#00FF00", red: "#FF0000",
   cyan: "#00FFFF", grey: "#AAAAAA", shadow: "#000000",
   xpFill: "#00AA00", xpBack: "#550000",
+  pTitle: "#FFFF00", pText: "#FFFFFF", pAccent: "#FFAA00", pCool: "#00FFFF", pDim: "#AAAAAA", pShadow: "#000000",
+  grain: "#555555",   // round layout: the scatter of darker pixels that makes the stone look like stone
 };
+const THEMES = {
+  stone: {},
+  // the modern game client's dark interface: black panels, grey bevels, a dark chatbox
+  dark: { bg: "#000000", stone: "#000000", stoneHi: "#555555", stoneMid: "#555555", parch: "#000000", parchLo: "#555555",
+    ink: "#FFFFFF", inkBlue: "#55AAFF", grain: "#000000" },
+  // light panels for bright daylight on the reflective screen: dark text, white chatbox
+  bright: { bg: "#FFFFFF", stone: "#FFFFFF", stoneHi: "#FFFFFF", stoneMid: "#AAAAAA", parch: "#FFFFFF", parchLo: "#000000",
+    ink: "#000000", inkBlue: "#0000AA", xpBack: "#AAAAAA", grain: "#FFFFFF",
+    pTitle: "#000000", pText: "#000000", pAccent: "#AA5500", pCool: "#0055AA", pDim: "#555555", pShadow: "#FFFFFF" },   // no shadow: it blurs dark text
+};
+const BASE = {};
+for (const k in C) BASE[k] = C[k];
+function applyTheme(name) {
+  const t = THEMES[name] || THEMES.stone;
+  for (const k in BASE) C[k] = k in t ? t[k] : BASE[k];
+}
 
 // ---------------------------------------------------------------- fonts
 // [style, scale]: scale = art-pixel size, used for the drop-shadow offset.
@@ -46,11 +67,15 @@ const F = {
   n: [new Style({ font: "px-n" }), 2],   // capitals 3x5 at 2x: 10 px caps, the small text
   m: [new Style({ font: "px-m" }), 2],
   c: [new Style({ font: "px-clk" }), 4],
+  // Pebble Round 2 only (each watch's build carries just its own fonts, see manifest.json)
+  r: [new Style({ font: "px-n3" }), 3],   // capitals 3x5 at 3x: 15 px caps, the round layout's text
+  k: [new Style({ font: "px-c5" }), 5],   // digits at 5x: 35 px, the round clock and big numbers
 };
 
 // ---------------------------------------------------------------- icons
 // Palette chars -> colour. "." is transparent. Each icon is one string: a 2-digit width, then
-// the rows concatenated (one string per icon keeps them in the archive, not the slot heap).
+// the rows concatenated and run-length coded (see icon()). One string per icon keeps them in the
+// archive, not the slot heap. tools/icon_sheet.py decodes them the same way.
 const PAL = {
   W: "#FFFFFF", K: "#000000", Y: "#FFFF00", O: "#FFAA00", R: "#FF0000", r: "#AA0000",
   G: "#AAAAAA", D: "#555555", B: "#55AAFF", b: "#0055AA", N: "#AA5500", n: "#550000",
@@ -58,55 +83,63 @@ const PAL = {
 };
 const ICONS = {
   // ---- orb glyphs, 7x7, white on the orb fluid
-  heart: "07.WW.WW.WWWWWWWWWWWWWWWWWWWWW.WWWWW...WWW.....W...",
-  pray: "07...W.....WWW..WWWWWWW.WWWWW...WWW...WW.WW.W.....W",
-  boot: "07.WWW....WWW....WWW....WWWW...WWWWWWWWWWWWWWWWWWWW",
-  moon: "07..WWW...WWW...WWW....WWW....WWW.....WWW.....WWW..",
+  heart: "07.2W.2W.9W9W3W.5W3.3W5.W3.",
+  pray: "073.W5.3W2.7W.5W3.3W3.2W.2W.W5.W",
+  boot: "07.3W4.3W4.3W4.4W3.9W9W2W",
+  moon: "072.3W3.3W3.3W4.3W4.3W5.3W5.3W2.",
+  // ---- small marks: minimap compass, account helm (tinted per account type)
+  north: "079..R5.3R3.2RW2R4.W6.W9..",
+  helm: "072.3W3.5W.8W5.8W.W.W.W8.",
+  // ---- hiscores extras: level-up fireworks, clue scroll, boss swords, GE coins (10x10, 2x)
+  levelup: "104.Y6.Y2.Y2.Y4.Y.O.Y6.OYO4.2YOYWYO2Y4.OYO6.Y.O.Y4.Y2.Y2.Y6.Y9.6.",
+  clue: "109.2.8N.N8WN.N2W2K2WN2.N4WKWN2.N3WK2WN2.N6WN2.N3WK2WN.N8WN.8N.",
+  boss: "10G8.G.G6.G3.G4.G5.G2.G7.2G8.2G7.N2.N5.N4.N3.2O4.2O.2O6.2O",
+  coins: "104.4Y5.Y4OY4.6Y.4Y4OY.Y4O4Y.6Y2OY.Y4O4Y.6Y5.4O9.6.",
   // ---- precipitation markers, drawn at 2x beside the % chance
   drop:   "03.B.BBBBBB.B.",
   flake:  "03W.W.W.W.W",
   // ---- weather, 12x12, drawn at 2x
-  sun: "12....O..O.....O........O.....YYYY.......YYYYYY...O.YYYYYYYY.O..YYYYYYYY....YYYYYYYO..O.YYYYYYOO.O...YYYOOO.......OOOO.....O........O.....O..O....",
-  moonw: "12................YYY........YYY........YYY.........YYY........YYYY........YYYY........YYYYY....Y...YYYYYYYY....OYYYYYYO.....OOOOOO...............",
-  cloud: "12............................WWW........WWWWW......WWWWWWWW...WWWWWWWWWW.WWWWWWWWWWWWWWWWWWWWWWWWGWWWWWWWWWWG.GGGGGGGGGG.........................",
-  pcloud: "12......Y..Y.........YYY........YYYYY.....WWWYYYYY...WWWWWYYY...WWWWWWWW...WWWWWWWWWW.WWWWWWWWWWWWWWWWWWWWWWWWGWWWWWWWWWWG.GGGGGGGGGG.............",
-  rain: "12....GGG........GGGGG......GGGGGGGG...GGGGGGGGGG.GGGGGGGGGGGGDGGGGGGGGGGD.DDDDDDDDDD..............B...B...B..B...B...B......B...B...B..B...B...B.",
-  snow: "12....GGG........GGGGG......GGGGGGGG...GGGGGGGGGG.GGGGGGGGGGGGDGGGGGGGGGGD.DDDDDDDDDD..............W...W...W..WWW.WWW.WWW..W...W...W..............",
-  storm: "12....DDD........DDDDD......DDDDDDDD...DDDDDDDDDD.DDDDDDDDDDDDKDDDDDDDDDDK.KKKKYYKKKK......YY.........YYYY..........Y..........Y..........Y.......",
-  fog: "12........................GGGGGGGGG.................GGGGGGGGGG............GGGGGGGGGG.................GGGGGGGGG............GGGGGGGGG...............",
+  sun: "124.O2.O5.O8.O5.4Y7.6Y3.O.8Y.O2.8Y4.7YO2.O.6Y2O.O3.3Y3O7.4O5.O8.O5.O2.O4.",
+  moonw: "129.7.3Y8.3Y8.3Y9.3Y8.4Y8.4Y8.5Y4.Y3.8Y4.O6YO5.6O9.6.",
+  cloud: "129.9.9..3W8.5W6.8W3.9WW.9W9W6WG9WWG.9GG9.9.7.",
+  pcloud: "126.Y2.Y9.3Y8.5Y5.3W5Y3.5W3Y3.8W3.9WW.9W9W6WG9WWG.9GG9.4.",
+  rain: "124.3G8.5G6.8G3.9GG.9G3GD9GGD.9DD9.5.B3.B3.B2.B3.B3.B6.B3.B3.B2.B3.B3.B.",
+  snow: "124.3G8.5G6.8G3.9GG.9G3GD9GGD.9DD9.5.W3.W3.W2.3W.3W.3W2.W3.W3.W9.5.",
+  storm: "124.3D8.5D6.8D3.9DD.9D3DK9DDK.4K2Y4K6.2Y9.4Y9..Y9..Y9..Y7.",
+  fog: "129.9.6.9G9.8.9GG9.3.9GG9.8.9G9.3.9G9.6.",
   // ---- skills, 10x10, drawn at 2x. Original symbols, one per hiscores skill (SKILLS order).
-  total: "10Y.YYYYYY.YYYYYYYYYYY.YYYYYYYY...YYYYYY.....YYYY.......OO........OO.......OOOO.....NNNNNN............",
-  attack: "10........WW.......WGW......WGW......WGW..O...WGW....O.WGW......OWW.......NO.......N..O.....N.........",
-  defence: "10.OOOOOOOO.OGGGGGGGGOOGBBBBBBGOOGBBBBBBGOOGBBBBBBGO.OGBBBBGO..OGBBBBGO...OGBBGO.....OGGO.......OO....",
-  strength: "10...........DD....DD.DGGD..DGGDDGGD..DGGDDGGGGGGGGDDGGD..DGGDDGGD..DGGD.DD....DD.....................",
-  hitpoints: "10.RR...RR..RWRR.RRRR.RRRRRRRRR.RRRRRRRRR..RRRRRRR....RRRRR......RRR........R.........................",
-  ranged: "10....NNG.....NN..G....N....G...N.....G...OOGGGGGGGWN.....G....N....G.....NN..G.......NNG.............",
-  prayer: "10....S........SWS.......SWS....SSSWWWSSS..SWWWWWS....SWWWS....SWS.SWS..SS.....SS.....................",
-  magic: "10....bb.......bbb.......bYb......bbbbb.....bbbYbb...bbbbbbb...bbYbbbbb.bbbbbbbbbbBBBBBBBBBB..........",
-  cooking: "10..W..W.......W..W.....W..W..............DGGGGGGGGD.GGGGGGGG..GDDDDDDG..GDDDDDDG...GGGGGG............",
-  woodcutting: "10...gLLg.....gLLLLg...gLLgLLLg.gLLLLLLgLg.gLLLLLLg...gggggg......NN........NN.......NNNN.............",
-  fletching: "10......GGG........GG.......N.G......N........N........N......RRN.......RRR........RR.................",
-  fishing: "10.............BBBB....BBBBBBB.BBKBBBBBBBBBBBBBBBBBB.BBBBBBB.B...BBBB.................................",
-  firemaking: "10....R........RR........ROR......ROOR.R....ROOORR...ROOYOOR...ROYYYOR...ROYYYOR....ROOOR.....NNNNN...",
-  crafting: "10............SSSSSS...SWSSSSWS.SSSSSSSSSS.BSSSSSSB...BSSSSB.....BSSB.......BB........................",
-  smithing: "10....................DGGGGGGGG..DGGGGGGGG..DDGGGG......GG........GG.......GGGG.....DDDDDD............",
-  mining: "10..GGGGG....G.....GG.G....N..G......N........N.........N........N.........N........N........N........",
-  herblore: "10......LL.......LLLL.....LgLLL....LLgLL....LLgLLL...LLgLLL.....gLL......g........g...................",
-  agility: "10.....WW........WW......WWW......W.WWW.W.....W..W.....WWW......W...W....W.....W..W...................",
-  thieving: "10....................PPPPPPPPPPPKKPPPPKKPPKKPPPPKKP.PPPPPPPP...PP..PP................................",
-  slayer: "10..WWWWWW...WWWWWWWW.WWWWWWWWWWWKKWWWWKKWWKKWWWWKKWWWWWKKWWWW.WWWWWWWW...WKWKWK....WWWWWW............",
-  farming: "10...L..L.....LLL.LL....LLLLLL......LL........g.........g........ggg....NNNNNNNNNN.nnnnnnnn...........",
-  runecraft: "10...GGGG....GGDDDDGG..GDDYDDDG.GDDYYYDDDGGDDDYDDDDGGDDDYDDDDG.GDDYDDDG..GGDDDDGG....GGGG.............",
-  hunter: "10..NN..NN....NN..NN..N........NNN.NNNN.NN..NNNNNN...NNNNNNNN..NNNNNNNN...NN..NN......................",
-  construction: "10..DDDDD....DGGGGGD...DGGGGGDDD..DDNDD.......N.........N.........N.........N........NNN..............",
+  total: "10Y.6Y.9Y2Y.8Y3.6Y5.4Y7.2O8.2O7.4O5.6N9.3.",
+  attack: "108.2W7.WGW6.WGW6.WGW2.O3.WGW4.O.WGW6.O2W7.NO7.N2.O5.N9.",
+  defence: "10.8O.O8G2OG6BG2OG6BG2OG6BGO.OG4BGO2.OG4BGO3.OG2BGO5.O2GO7.2O4.",
+  strength: "109.2.2D4.2D.D2GD2.D2G2D2GD2.D2G2D8G2D2GD2.D2G2D2GD2.D2GD.2D4.2D9.9.3.",
+  hitpoints: "10.2R3.2R2.RW2R.4R.9R.9R2.7R4.5R6.3R8.R9.9.7.",
+  ranged: "104.2NG5.2N2.G4.N4.G3.N5.G3.2O7GWN5.G4.N4.G5.2N2.G7.2NG9.4.",
+  prayer: "104.S8.SWS7.SWS4.3S3W3S2.S5WS4.S3WS4.SWS.SWS2.2S5.2S9.9.3.",
+  magic: "104.2b7.3b7.bYb6.5b5.3bY2b3.7b3.2bY5b.9bb9BB9..",
+  cooking: "102.W2.W7.W2.W5.W2.W9.5.D8GD.8G2.G6DG2.G6DG3.6G9.3.",
+  woodcutting: "103.g2Lg5.g4Lg3.g2Lg3Lg.g6LgLg.g6Lg3.6g6.2N8.2N7.4N9.4.",
+  fletching: "106.3G8.2G7.N.G6.N8.N8.N6.2RN7.3R8.2R9.8.",
+  fishing: "109.4.4B4.7B.2BK9B9B.7B.B3.4B9.9.9.6.",
+  firemaking: "104.R8.2R8.ROR6.R2OR.R4.R3O2R3.R2OY2OR3.RO3YOR3.RO3YOR4.R3OR5.5N3.",
+  crafting: "109.3.6S3.SW4SWS.9SS.B6SB3.B4SB5.B2SB7.2B9.9.6.",
+  smithing: "109.9.2.D8G2.D8G2.2D4G6.2G8.2G7.4G5.6D9.3.",
+  mining: "102.5G4.G5.2G.G4.N2.G6.N8.N9.N8.N9.N8.N8.N8.",
+  herblore: "106.2L7.4L5.Lg3L4.2Lg2L4.2Lg3L3.2Lg3L5.g2L6.g8.g9.9..",
+  agility: "105.2W8.2W6.3W6.W.3W.W5.W2.W5.3W6.W3.W4.W5.W2.W9.9..",
+  thieving: "109.9.2.9P2P2K4P2K2P2K4P2KP.8P3.2P2.2P9.9.9.5.",
+  slayer: "102.6W3.8W.9W2W2K4W2K2W2K4W2K5W2K4W.8W3.WKWKWK4.6W9.3.",
+  farming: "103.L2.L5.3L.2L4.6L6.2L8.g9.g8.3g4.9NN.8n9.2.",
+  runecraft: "103.4G4.2G4D2G2.G2DY3DG.G2D3Y3D2G3DY4D2G3DY4DG.G2DY3DG2.2G4D2G4.4G9.4.",
+  hunter: "102.2N2.2N4.2N2.2N2.N8.3N.4N.2N2.6N3.8N2.8N3.2N2.2N9.9.4.",
+  construction: "102.5D4.D5GD3.D5G3D2.2DN2D7.N9.N9.N9.N8.3N9.5.",
   // RuneScape 3's extra skills
-  summoning: "10....NN.......NnnN.......NN......NNNNNN...NNNNNNNN.NNNSSSSNNNNNSSWWSSNNNNNSSSSNNN.NNNNNNNN...NNNNNN..",
-  dungeoneering: "10..GGGGGG...GNNNNNNG..GNNNNNNG..GNNNNNNG..GNNNNYNG..GNNNNNNG..GNNNNNNG..GNNNNNNG..GNNNNNNG.GGGGGGGGGG",
-  divination: "10....Y........YSY......YSWSY......YSY........S........S..........S..........S........S...............",
-  invention: "10...YYYY.....YWWYYY...YWYYYYYY..YYYYYYYY..YYYYYYYY...YYYYYY.....YYYY......GGGG......DDDD.......GG....",
-  archaeology: "10......GG.......GWGG.....GWGGG....GGGGG....NGGGG....NN.......NN........N.............................",
-  necromancy: "10...PPPP.....PWWWWP...PWWWWWWP..PWKWWKWP..PWKWWKWP..PWWWWWWP...PWKKWP.....PWWP.....P.PP.P............",
-  sailing: "10....GG.......G..G.......GG......GGGGGG......GG........GG....G...GG...GGG..GG..GG.GGGGGGGG....GGGG...",
+  summoning: "104.2N7.N2nN7.2N6.6N3.8N.3N4S5N2S2W2S5N4S3N.8N3.6N2.",
+  dungeoneering: "102.6G3.G6NG2.G6NG2.G6NG2.G4NYNG2.G6NG2.G6NG2.G6NG2.G6NG.9GG",
+  divination: "104.Y8.YSY6.YSWSY6.YSY8.S8.S9..S9..S8.S9.6.",
+  invention: "103.4Y5.Y2W3Y3.YW6Y2.8Y2.8Y3.6Y5.4Y6.4G6.4D7.2G4.",
+  archaeology: "106.2G7.GW2G5.GW3G4.5G4.N4G4.2N7.2N8.N9.9.9.2.",
+  necromancy: "103.4P5.P4WP3.P6WP2.PWK2WKWP2.PWK2WKWP2.P6WP3.PW2KWP5.P2WP5.P.2P.P9.3.",
+  sailing: "104.2G7.G2.G7.2G6.6G6.2G8.2G4.G3.2G3.3G2.2G2.2G.8G4.4G3.",
 };
 const SKILLS = ["Attack", "Defence", "Strength", "Hitpoints", "Ranged", "Prayer", "Magic", "Cooking",
   "Woodcutting", "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblore",
@@ -122,20 +155,21 @@ function skIcon(s, i) {
   return nm === "constitution" ? "hitpoints" : nm === "runecrafting" ? "runecraft" : nm;
 }
 
-// Draw an icon at (x, y) with integer scale s. Runs of one colour become one fillColor.
+// Draw an icon at (x, y) with integer scale s. Icons are run-length coded: a digit 2-9 repeats
+// the next character, so each run becomes one fillColor (split where a row ends).
 // tint, when given, paints every opaque pixel that one colour (used for the glyph outlines).
 function icon(port, name, x, y, s, tint) {
   const ic = ICONS[name]; if (!ic) return;
-  const w = parseInt(ic.slice(0, 2), 10), n = ic.length;
-  for (let p = 2; p < n; p += w) {
-    const yy = y + ((p - 2) / w) * s;
-    let i = 0;
-    while (i < w) {
-      const ch = ic[p + i];
-      if (ch === ".") { i++; continue; }
-      let j = i + 1; while (j < w && ic[p + j] === ch) j++;
-      port.fillColor(tint || PAL[ch], x + i * s, yy, (j - i) * s, s);
-      i = j;
+  const w = parseInt(ic.slice(0, 2), 10), len = ic.length;
+  let col = 0, row = 0;
+  for (let p = 2; p < len; p++) {
+    let ch = ic[p], n = 1;
+    if (ch >= "2" && ch <= "9") { n = ch.charCodeAt(0) - 48; ch = ic[++p]; }
+    while (n > 0) {
+      const take = n < w - col ? n : w - col;
+      if (ch !== ".") port.fillColor(tint || PAL[ch], x + col * s, y + row * s, take * s, s);
+      col += take; n -= take;
+      if (col === w) { col = 0; row++; }
     }
   }
 }
@@ -149,6 +183,14 @@ function txt(port, s, f, col, x, y, align) {
   if (align === "c") x -= tw(port, s, f) >> 1;
   else if (align === "r") x -= tw(port, s, f);
   port.drawString(s, st, C.shadow, x + o, y + o);
+  port.drawString(s, st, col, x, y);
+}
+// text drawn straight on a panel: the theme's panel shadow (a light theme has no black shadow)
+function ptxt(port, s, f, col, x, y, align) {
+  const st = F[f][0], o = F[f][1];
+  if (align === "c") x -= tw(port, s, f) >> 1;
+  else if (align === "r") x -= tw(port, s, f);
+  if (C.pShadow !== C.stone) port.drawString(s, st, C.pShadow, x + o, y + o);
   port.drawString(s, st, col, x, y);
 }
 function txtFlat(port, s, f, col, x, y, align) {
@@ -182,17 +224,20 @@ function disc(port, cx, cy, r, col, clipY) {
   }
 }
 // One status orb: value plate on the left, socket with fluid level + glyph on the right.
-function orb(port, x, y, frac, fluid, fluidLo, glyph, label, labelCol) {
-  const r = 9, cx = x + 50, cy = y + 10;
+// flip puts the plate on the right of the orb (the round layout's right-hand orbs); the orb then
+// sits at x+10 and the plate at x+22..x+61, so both layouts span the same 62 px.
+function orb(port, x, y, frac, fluid, fluidLo, glyph, label, labelCol, flip) {
+  const r = 9, cx = flip ? x + 10 : x + 50, cy = y + 10, px = flip ? x + 22 : x - 1;
   // value plate
   // plate y+1..y+19 is centred on the orb (cy = y+10); the 14 px digits plus their 2 px shadow
   // sit inside it, and it is wide enough for "100"
-  well(port, x - 1, y + 1, 40, 19);                 // 40 wide: fits "5.1k" and "100"
-  // right edge x+37: measured widths include each glyph's 2 px trailing gap, so ink ends at x+35
+  well(port, px, y + 1, 40, 19);                    // 40 wide: fits "5.1k" and "100"
+  // right edge px+38: measured widths include each glyph's 2 px trailing gap, so ink ends 2 px in
+  const rx = px + 38;
   if (label.length > 1 && label[label.length - 1] === "k") {   // "5.1k": number + a small K suffix
-    txt(port, "k", "n", labelCol, x + 37, y + 7, "r");
-    txt(port, label.slice(0, -1), "m", labelCol, x + 37 - tw(port, "k", "n"), y + 3, "r");
-  } else txt(port, label, "m", labelCol, x + 37, y + 3, "r");
+    txt(port, "k", "n", labelCol, rx, y + 7, "r");
+    txt(port, label.slice(0, -1), "m", labelCol, rx - tw(port, "k", "n"), y + 3, "r");
+  } else txt(port, label, "m", labelCol, rx, y + 3, "r");
   // socket
   disc(port, cx, cy, r + 1, C.stoneLo);
   disc(port, cx, cy, r, C.stoneMid);
@@ -241,24 +286,29 @@ function orbValue(m, b, h) {
 
 // ---------------------------------------------------------------- data
 // skill = the Old School pick, skill3 = the RuneScape 3 pick; swap = how two games share the panel
-// orbs = what each orb shows, top to bottom; cm = which chatbox messages run (r rain, s steps,
-// x xp, c charging, w welcome), empty = the date only
+// orbs = what each orb shows, top to bottom; cm = which chatbox messages run (letters: see
+// chatMessage), empty = the date only; theme = stone | dark | bright; helm = account-type helm
 // (tools/shots.sh patches hsMode and skill on the first line)
 const cfg = { hsMode: "pick", skill: 18, skill3: 18, swap: "min", rotMin: 5, units: "C",
-  stepGoal: 8000, sleepGoal: 8, activeGoal: 30, distGoal: 5, calGoal: 400, orbs: ORB_DEFAULT, cm: "rsxcw" };
-// DEMO_DATA seeds the panels for emulator renders; real phone DATA replaces it as it arrives.
-const DEMO_DATA = {
-  v: 2, at: 0,
-  w: { t: 12, hi: 14, lo: 7, c: "rain", p: 40, d: "Light rain", rt: "15:00" },
-  hs: [{ gm: "osrs", n: "Zezima", tot: 1873,
-       l: [92, 88, 95, 93, 90, 77, 94, 85, 81, 82, 86, 80, 74, 70, 77, 72, 71, 75, 87, 79, 66, 78, 70, 41],
-       g: [0, 0, 0, 12500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41200, 0, 0, 0, 0, 0] }],
-};
-// sample progress: % through each level (f) and xp left (r), as the phone would send them;
-// r follows the game's level curve (xp from lv to lv+1 = floor(lv + 300 * 2^(lv/7)) / 4)
-DEMO_DATA.hs[0].f = DEMO_DATA.hs[0].l.map((lv, k) => (k * 37 + 11) % 97);
-DEMO_DATA.hs[0].r = DEMO_DATA.hs[0].l.map((lv, k) => Math.round((100 - DEMO_DATA.hs[0].f[k]) / 100 * Math.floor(lv + 300 * Math.pow(2, lv / 7)) / 4));
-let data = DEMO ? DEMO_DATA : { v: 2, at: 0, hs: [] };   // v2: hs = one hiscores block per game
+  stepGoal: 8000, sleepGoal: 8, activeGoal: 30, distGoal: 5, calGoal: 400, orbs: ORB_DEFAULT, cm: "rsxlcw",
+  theme: "stone", helm: true };
+// demoData() builds the sample panels for emulator renders and the settings preview; real phone
+// DATA replaces them as it arrives. Built only when asked: a release build never pays the slots.
+// DEMO_LU (patched by tools/shots.sh) adds a fresh Woodcutting level-up.
+const DEMO_LU = false;
+function demoData() {
+  const b = { gm: "osrs", n: "Zezima", tot: 1873, ac: "iron", kc: { l: "Zulrah", s: 1204, k: 5123, n: "Zulrah" },
+    l: [92, 88, 95, 93, 90, 77, 94, 85, 81, 82, 86, 80, 74, 70, 77, 72, 71, 75, 87, 79, 66, 78, 70, 41],
+    g: [0, 0, 0, 12500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41200, 0, 0, 0, 0, 0] };
+  // % through each level (f) and xp left (r), as the phone sends them; r follows the game's level
+  // curve (xp from lv to lv+1 = floor(lv + 300 * 2^(lv/7)) / 4)
+  b.f = b.l.map((lv, k) => (k * 37 + 11) % 97);
+  b.r = b.l.map((lv, k) => Math.round((100 - b.f[k]) / 100 * Math.floor(lv + 300 * Math.pow(2, lv / 7)) / 4));
+  if (DEMO_LU) b.lu = [8, 82, Math.floor(Date.now() / 1000)];
+  return { v: 2, at: 0, w: { t: 12, hi: 14, lo: 7, c: "rain", p: 40, d: "Light rain", rt: "15:00" }, hs: [b],
+    ge: { n: "Abyssal whip", p: 691188, c: 1.2 } };
+}
+let data = DEMO ? demoData() : { v: 2, at: 0, hs: [] };   // v2: hs = one hiscores block per game
 
 let battery = null;
 try { battery = new Battery({}); } catch (e) { battery = null; }
@@ -306,19 +356,41 @@ function kfmt(n) {                                     // 4012345 -> 4.01M, 4120
 let btOk = true; try { btOk = !!watch.connected.app; } catch (e) {}
 
 // ---------------------------------------------------------------- the face
+// Two layouts share every helper below: the Time 2's game screen (200x228) and, on the round
+// Pebble Round 2 (260x260), a minimap layout: clock on top, weather inside a minimap circle, two
+// orbs either side of it, then the hiscores band and the chatbox following the screen's curve.
+const ROUND = W === H;
+const RC = W >> 1;                                     // round: screen centre
+// half the width of a circle of radius r (default: the screen) centred on the screen, at row y
+function chord(y, r) {
+  if (r === undefined) r = RC;
+  const dy = y + 0.5 - RC; return dy * dy >= r * r ? 0 : Math.floor(Math.sqrt(r * r - dy * dy));
+}
+// Timeline Quick View covers the bottom of the screen; peek = how many pixels (0 when hidden),
+// set from the app's height by the resize listener
+let peek = 0;
+
+function clockString(d) {
+  let hh = d.getHours();
+  if (hour12()) { hh = hh % 12; if (hh === 0) hh = 12; }
+  return (hour12() ? "" + hh : pad(hh)) + ":" + pad(d.getMinutes());
+}
+function dateString(d) { return DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()]; }
+const ORB_GLYPHS = ["heart", "pray", "boot", "moon"];
+// weather older than 3 hours (phone offline, API refusing) greys out and says how old
+function weatherAge(w) { const age = w && w.at ? Date.now() / 1000 - w.at : 0; return [age, age > 3 * 3600]; }
+
+// ==== layout: square begin ==== (the Time 2 layout; tools/gen_layouts.py leaves it out of the
+// gabbro build, and the round block out of the emery build)
 function drawClock(port, d) {
   panel(port, 0, 0, 134, 92);
   well(port, 5, 5, 124, 82);
-  let hh = d.getHours();
-  if (hour12()) { hh = hh % 12; if (hh === 0) hh = 12; }
-  const clock = (hour12() ? "" + hh : pad(hh)) + ":" + pad(d.getMinutes());
-  txt(port, clock, "c", C.yellow, 67, 14, "c");
-  txt(port, DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()], "m", C.orange, 67, 58, "c");
+  txt(port, clockString(d), "c", C.yellow, 67, 14, "c");
+  txt(port, dateString(d), "m", C.orange, 67, 58, "c");
 }
-const ORB_GLYPHS = ["heart", "pray", "boot", "moon"];
 // The still parts of the face, exactly as the C start frame paints them (src/c/mdbl.c): shown
 // until the saved data is restored, so the hand-over from C changes nothing on screen.
-function drawStill(port) {
+function squareStill(port) {
   port.fillColor(C.bg, 0, 0, W, H);
   drawClock(port, new Date());
   panel(port, 134, 0, 66, 92);
@@ -330,81 +402,287 @@ function drawStill(port) {
   txtFlat(port, "Gielinor: ", "n", C.inkBlue, 6, 198, "l");
 }
 
-function drawFace(port) {
+function squareFace(port, d, b, h, hs) {
   port.fillColor(C.bg, 0, 0, W, H);
-
-  // ---- clock viewport (left) ----
-  const d = new Date();
   drawClock(port, d);
-
-  // ---- orbs (right) ----
   panel(port, 134, 0, 66, 92);
-  const b = batt(), h = health();
   for (let i = 0; i < 4; i++) {
     const m = cfg.orbs[i] || ORB_DEFAULT[i], v = orbValue(m, b, h);
     orb(port, 137, 2 + 22 * i, v.f, ORB_LOOK[i][0], ORB_LOOK[i][1], ORB_LOOK[i][2], v.l, v.c);
   }
+  drawWeather(port);
+  // with Timeline Quick View up the chatbox gives way, and the hiscores shrink to fit what's left
+  const room = H - peek;
+  drawHiscores(port, hs, 140, room < 192);
+  if (room >= H) drawChat(port, d, b, h, hs);
+}
 
-  // ---- weather ----
+// ---- weather (Time 2): the panel under the clock
+function drawWeather(port) {
+  const w = data.w, ag = weatherAge(w), age = ag[0], stale = ag[1];
+  const pS = w ? w.p + "%" : "", mark = w && w.c === "snow" ? "flake" : "drop";
   panel(port, 0, 92, W, 48);
-  const w = data.w;
   if (w) {
     well(port, 5, 97, 30, 38);
     icon(port, w.c || "cloud", 8, 104, 2);
-    // older than 3 hours (phone offline, API refusing): grey it out and say how old
-    const age = w.at ? Date.now() / 1000 - w.at : 0, stale = age > 3 * 3600;
-    txt(port, w.t + "°", "m", stale ? C.grey : C.yellow, 42, 99, "l");
-    txt(port, "H" + w.hi + " L" + w.lo, "m", stale ? C.grey : C.orange, W - 7, 99, "r");
+    ptxt(port, w.t + "°", "m", stale ? C.pDim : C.pTitle, 42, 99, "l");
+    ptxt(port, "H" + w.hi + " L" + w.lo, "m", stale ? C.pDim : C.pAccent, W - 7, 99, "r");
     // row 2: conditions on the left, chance of rain/snow on the right behind a drop/flake marker
-    const pS = w.p + "%", px0 = W - 7 - tw(port, pS, "n");
-    txt(port, pS, "n", stale ? C.grey : C.cyan, W - 7, 121, "r");
-    icon(port, w.c === "snow" ? "flake" : "drop", px0 - 10, w.c === "snow" ? 122 : 121, 2, stale ? C.grey : undefined);
+    const px0 = W - 7 - tw(port, pS, "n");
+    ptxt(port, pS, "n", stale ? C.pDim : C.pCool, W - 7, 121, "r");
+    icon(port, mark, px0 - 10, w.c === "snow" ? 122 : 121, 2, stale ? C.pDim : undefined);
     const desc = stale ? Math.floor(age / 3600) + "h old" : (w.d || "");
-    if (42 + tw(port, desc, "n") <= px0 - 14) txt(port, desc, "n", stale ? C.grey : C.white, 42, 121, "l");
+    if (42 + tw(port, desc, "n") <= px0 - 14) ptxt(port, desc, "n", stale ? C.pDim : C.pText, 42, 121, "l");
   } else {
-    txt(port, "Fetching weather...", "n", C.grey, W >> 1, 111, "c");
+    ptxt(port, "Fetching weather...", "n", C.pDim, W >> 1, 111, "c");
   }
+}
 
-  // ---- hiscores ----
-  panel(port, 0, 140, W, 52);
-  const hs = hiscoreView(d);
-  if (hs.msg) {
-    txt(port, hs.msg, "n", C.grey, W >> 1, 160, "c");
-  } else {
-    well(port, 5, 145, 28, 28);
-    icon(port, hs.icon, 9, 149, 2);
-    txt(port, hs.title, "m", C.yellow, 40, 146, "l");
-    // total level as trophy + number, only when it clears the title (long skill names win)
-    if (hs.right) {
-      const rw = tw(port, hs.right, "n");
-      if (40 + tw(port, hs.title, "m") + 8 + 12 + rw <= W - 7) {
-        icon(port, "total", W - 7 - rw - 12, 148, 1);
-        txt(port, hs.right, "n", C.white, W - 7, 148, "r");
-      }
+// ---- hiscores (Time 2): the panel at y; compact = title and bar only
+const HELM = { iron: "#AAAAAA", hcim: "#FF0000", uim: "#FFFFFF" };
+function drawHiscores(port, hs, y, compact) {
+  // x0..x1 = the text column, ix = icon well
+  const x0 = 40, x1 = W - 7, ix = 5;
+  panel(port, 0, y, W, compact ? Math.min(37, H - peek - y) : 52);
+  if (hs.msg) { ptxt(port, hs.msg, "n", C.pDim, W >> 1, y + (compact ? 13 : 20), "c"); return; }
+  const ty = y + 6, barDy = 18, subDy = 29;
+  well(port, ix, ty - 1, 28, 28);
+  icon(port, hs.icon, ix + 4, ty + 3, 2);
+  ptxt(port, hs.title, "m", C.pTitle, x0, ty, "l");
+  // the right of the title row: total level (trophy), kill count or price, when it fits
+  if (hs.right) {
+    const rw = tw(port, hs.right, "n"), tro = hs.rIcon ? 12 : 0;
+    if (x0 + tw(port, hs.title, "m") + 8 + tro + rw <= x1) {
+      if (tro) icon(port, hs.rIcon, x1 - rw - tro, ty + 2, 1);
+      ptxt(port, hs.right, "n", C.pText, x1, ty + 2, "r");
     }
-    // XP bar toward the next level (gold when maxed)
-    const bx = 40, by = 164, bw = W - 47, bh = 6, fw = Math.round(bw * hs.frac);
-    port.fillColor(C.stoneLo, bx - 1, by - 1, bw + 2, bh + 2);
-    port.fillColor(C.xpBack, bx, by, bw, bh);
-    port.fillColor(hs.max ? "#AAAA00" : C.xpFill, bx, by, fw, bh);
-    port.fillColor(hs.max ? C.yellow : "#55FF55", bx, by, fw, 1);
-    txt(port, hs.sub, "n", C.white, bx, 175, "l");
-    if (bx + tw(port, hs.sub, "n") + 10 + tw(port, hs.name, "n") <= W - 7) txt(port, hs.name, "n", C.cyan, W - 7, 175, "r");
   }
+  // the bar: XP to the next level (gold when maxed); hidden for modes without one
+  const by = ty + barDy, bw = x1 - x0, fw = Math.round(bw * (hs.frac || 0));
+  if (hs.frac !== undefined) {
+    port.fillColor(C.stoneLo, x0 - 1, by - 1, bw + 2, 8);
+    port.fillColor(C.xpBack, x0, by, bw, 6);
+    port.fillColor(hs.max ? "#AAAA00" : C.xpFill, x0, by, fw, 6);
+    port.fillColor(hs.max ? C.yellow : "#55FF55", x0, by, fw, 1);
+  }
+  if (compact) return;
+  const sy = ty + subDy;
+  ptxt(port, hs.sub, "n", hs.subCol || C.pText, x0, sy, "l");
+  // name (or OSRS / RS3 tag) on the right, with the account-type helm in front of it
+  const helm = cfg.helm && hs.ac && HELM[hs.ac] ? 10 : 0, nw = tw(port, hs.name || "", "n");
+  if (hs.name && x0 + tw(port, hs.sub, "n") + 8 + helm + nw <= x1) {
+    ptxt(port, hs.name, "n", C.pCool, x1, sy, "r");
+    if (helm) icon(port, "helm", x1 - nw - helm, sy + 1, 1, HELM[hs.ac]);
+  }
+}
 
-  // ---- chatbox ----
+// ---- chatbox (Time 2): parchment strip with the speaker
+function drawChat(port, d, b, h, hs) {
+  const msg = chatMessage(d, b, h, hs);
   port.fillColor(C.parchLo, 0, 192, W, H - 192);
   port.fillColor(C.parch, 2, 194, W - 4, H - 196);
   const who = "Gielinor: ", whoW = tw(port, who, "n");
-  const lines = wrap(port, chatMessage(d, b, h, hs), W - 12, whoW);
+  const lines = wrap(port, msg, [W - 12 - whoW, W - 12], "n");
   txtFlat(port, who, "n", C.inkBlue, 6, 198, "l");
   if (lines[0]) txtFlat(port, lines[0], "n", C.ink, 6 + whoW, 198, "l");
   if (lines[1]) txtFlat(port, lines[1], "n", C.ink, 6, 212, "l");
 }
+// ==== layout: square end ====
+
+// ==== layout: round begin ====
+// ================================================================ Pebble Round 2 (260x260)
+// The minimap layout, drawn bigger than the Time 2's: text is 15 px capitals (px-n3) and the
+// clock 35 px (px-c5). Top to bottom:
+//   the clock and date in a viewport shaped like the top of the screen;
+//   the minimap: your hiscore at a glance (skill icon, big level), with the XP to the next level
+//   as a ring round its rim, like the game's XP orb; two orbs either side of it;
+//   the chatbox across the wide middle of the screen, then the weather in the bottom band.
+// Every pixel belongs to the stone frame, so nothing floats on bare black.
+const CV_Y0 = 15, CV_Y1 = 83, CV_HW = 84;               // clock viewport rows, widest half-width
+const MM_Y = 130, MM_R = 44;                            // minimap centre and outer radius
+const CH_Y = 177, WX_Y = 216;                           // chatbox band, weather band (top rows)
+// round orb: socket radius 12 with a 2x glyph, a value plate 46x23 beside it
+const RO_R = 12, RO_PW = 46, RO_PH = 23;
+// orb i: [x, y] of its plate+socket box (74 wide), and whether the plate is on the right
+function roundOrbSpot(i) {
+  const left = i < 2;                                   // Hitpoints and Prayer left, Run and Special right
+  return [left ? 10 : 176, i % 2 ? 140 : 96, !left];
+}
+function roundBand(port, y0, y1, fill, edge, hi) {      // rows y0..y1 clipped to the circle
+  for (let y = y0; y <= y1; y++) {
+    const h = chord(y);
+    if (h) port.fillColor(y === y0 || y === y1 ? edge : hi && y === y0 + 1 ? hi : fill, RC - h, y, 2 * h, 1);
+  }
+}
+// the stone frame: dark outer line, lit edge, stone, a fixed scatter of grain
+function roundBackdrop(port) {
+  port.fillColor(C.bg, 0, 0, W, H);
+  disc(port, RC, RC, RC - 1, C.stoneLo);
+  disc(port, RC, RC, RC - 2, C.stoneHi);
+  disc(port, RC, RC, RC - 4, C.stone);
+  for (let k = 0; k < 150; k++) {
+    const x = (k * 97 + 13) % 236 + 12, y = (k * 61 + 7) % 236 + 12, dx = x - RC, dy = y - RC;
+    if (dx * dx + dy * dy < (RC - 8) * (RC - 8)) port.fillColor(C.grain, x, y, 2, 1);
+  }
+}
+function roundViewport(port) {
+  for (let y = CV_Y0; y <= CV_Y1; y++) {
+    const h = Math.min(CV_HW, chord(y, RC - 8));
+    if (!h) continue;
+    const edge = y === CV_Y0 || y === CV_Y1;
+    port.fillColor(edge ? C.stoneLo : C.stoneMid, RC - h - 1, y, 2 * h + 2, 1);
+    if (!edge) port.fillColor(C.inset, RC - h, y, 2 * h, 1);
+  }
+}
+function roundClock(port, d) {
+  roundViewport(port);
+  txt(port, clockString(d), "k", C.yellow, RC, 25, "c");
+  txt(port, dateString(d), "r", C.orange, RC, 64, "c");
+}
+// the minimap: stone rim (which carries the XP ring) round a dark well, compass on the rim
+function roundMinimap(port) {
+  disc(port, RC, MM_Y, MM_R, C.stoneLo);
+  disc(port, RC, MM_Y, MM_R - 1, C.stoneHi);
+  disc(port, RC, MM_Y, MM_R - 2, C.stone);
+  disc(port, RC, MM_Y, MM_R - 7, C.stoneLo);
+  disc(port, RC, MM_Y, MM_R - 8, C.inset);
+}
+// the XP ring: rows of the annulus between radii r0 and r1, lit clockwise from 12 o'clock up to
+// frac of the way round; the rest is the bar's dark red
+function xpRing(port, frac, max) {
+  const r0 = MM_R - 6, r1 = MM_R - 2, lit = max ? C.orange : C.xpFill, rest = C.xpBack;
+  const end = frac * 2 * Math.PI;
+  for (let dy = -r1; dy <= r1; dy++) {
+    for (let dx = -r1; dx <= r1; dx++) {
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r1 * r1 + r1 || d2 < r0 * r0) continue;
+      let a = Math.atan2(dx, -dy); if (a < 0) a += 2 * Math.PI;   // 0 at 12 o'clock, clockwise
+      port.fillColor(a < end ? lit : rest, RC + dx, MM_Y + dy, 1, 1);
+    }
+  }
+}
+// one round orb: value plate beside a bigger socket, fluid level, 2x glyph with a dark outline
+function roundOrb(port, x, y, frac, fluid, fluidLo, glyph, label, labelCol, plateRight) {
+  const cy = y + (RO_PH >> 1), cx = plateRight ? x + RO_R : x + RO_PW + 3 + RO_R, px = plateRight ? x + 2 * RO_R + 4 : x;
+  well(port, px, y, RO_PW, RO_PH);
+  if (label) txt(port, label, "r", labelCol, px + (RO_PW >> 1), y + 4, "c");   // centred on the plate
+  disc(port, cx, cy, RO_R + 1, C.stoneLo);
+  disc(port, cx, cy, RO_R, C.stoneMid);
+  disc(port, cx, cy, RO_R - 1, "#000055");
+  const f = frac < 0 ? 0 : frac > 1 ? 1 : frac;
+  if (f > 0) {
+    const top = cy + (RO_R - 1) - Math.round(f * (2 * (RO_R - 1) + 1)) + 1;
+    disc(port, cx, cy, RO_R - 1, fluidLo, top);
+    disc(port, cx - 1, cy - 1, RO_R - 4, fluid, top);
+  }
+  const gx = cx - 7, gy = cy - 6;
+  icon(port, glyph, gx - 1, gy, 2, "#000000"); icon(port, glyph, gx + 1, gy, 2, "#000000");
+  icon(port, glyph, gx, gy - 1, 2, "#000000"); icon(port, glyph, gx, gy + 1, 2, "#000000");
+  icon(port, glyph, gx, gy, 2);
+}
+// The still frame, exactly as the C start frame paints it (src/c/mdbl.c, PBL_ROUND)
+function roundStill(port) {
+  roundBackdrop(port);
+  roundClock(port, new Date());
+  roundMinimap(port);
+  for (let i = 0; i < 4; i++) { const o = roundOrbSpot(i); roundOrb(port, o[0], o[1], 0, C.grey, C.grey, ORB_GLYPHS[i], "", C.grey, o[2]); }
+  roundBand(port, CH_Y, WX_Y - 1, C.parch, C.parchLo);
+  roundBand(port, WX_Y, H - 1, C.stone, C.stoneLo, C.stoneHi);
+}
+function roundFace(port, d, b, h, hs) {
+  roundBackdrop(port);
+  roundClock(port, d);
+  roundMinimap(port);
+  if (hs.frac !== undefined && !hs.msg) xpRing(port, hs.frac, hs.max);
+  roundHiscore(port, hs);
+  for (let i = 0; i < 4; i++) {
+    const m = cfg.orbs[i] || ORB_DEFAULT[i], v = orbValue(m, b, h), o = roundOrbSpot(i);
+    roundOrb(port, o[0], o[1], v.f, ORB_LOOK[i][0], ORB_LOOK[i][1], ORB_LOOK[i][2], v.l, v.c, o[2]);
+  }
+  roundChat(port, d, b, h, hs);
+  roundWeather(port);
+}
+// inside the minimap's well (radius MM_R - 8): the icon, then the level (or kill count, price,
+// today's xp) as big as fits, and the game's tag when two games share the panel
+function roundHiscore(port, hs) {
+  if (hs.msg) {                                         // notices: up to three centred lines
+    const words = hs.msg.split(" "), lines = [""];
+    for (let k = 0; k < words.length; k++) {
+      const t = lines[lines.length - 1], tryS = t ? t + " " + words[k] : words[k];
+      if (!t || tw(port, tryS, "n") <= 64) lines[lines.length - 1] = tryS;
+      else if (lines.length < 3) lines.push(words[k]);
+      else { lines[2] += "..."; break; }
+    }
+    lines.forEach((l, k) => txt(port, l, "n", C.grey, RC, MM_Y - 7 * lines.length + 14 * k + 1, "c"));
+    return;
+  }
+  const big = hs.big || "", digits = /^[0-9]{1,2}$/.test(big);
+  // a label under the number: the game (with both on), or which boss / item, cut to fit
+  let tag = hs.tag || (hs.icon === "boss" || hs.icon === "clue" || hs.icon === "coins" ? hs.title : "");
+  while (tag && tw(port, tag, "n") > 48) tag = tag.slice(0, -1);   // 46 px of ink: fits the well at its row
+  // icon, number and label as one block, centred in the well both ways. The 35 px digits are for
+  // a level with nothing under it; with a label the number is 15 px, so the label clears the rim.
+  const big35 = digits && !tag, iw = ICONS[hs.icon] ? parseInt(ICONS[hs.icon].slice(0, 2), 10) : 10;
+  const iy = tag ? -26 : big35 ? -29 : -22;
+  icon(port, hs.icon, RC - iw, MM_Y + iy, 2);
+  if (big35) txt(port, big, "k", hs.max ? C.yellow : C.white, RC, MM_Y - 7, "c");
+  else txt(port, big, "r", hs.max ? C.yellow : C.white, RC, MM_Y + iy + 23, "c");
+  if (tag) txt(port, tag, "n", C.cyan, RC, MM_Y + 16, "c");
+}
+// the weather band: icon, temperature, high/low and rain chance in one row, dropping the least
+// important parts when the row is too wide for the curve
+function roundWeather(port) {
+  roundBand(port, WX_Y, H - 1, C.stone, C.stoneLo, C.stoneHi);
+  const w = data.w, y = WX_Y + 5;
+  if (!w) { ptxt(port, "Weather...", "r", C.pDim, RC, y, "c"); return; }
+  const stale = weatherAge(w)[1];
+  const parts = [[w.t + "°", stale ? C.pDim : C.pTitle], ["H" + w.hi + " L" + w.lo, stale ? C.pDim : C.pAccent], [w.p + "%", stale ? C.pDim : C.pCool]];
+  const room = 2 * chord(y + 15) - 8, gap = 6, ic = 25, mk = 10;
+  let keep = [0, 1, 2];
+  const width = (k) => ic + k.reduce((a, i) => a + gap + tw(port, parts[i][0], "r") + (i === 2 ? mk : 0), 0);
+  if (width(keep) > room) keep = [0, 2];
+  if (width(keep) > room) keep = [0];
+  let x = RC - (width(keep) >> 1);
+  icon(port, w.c || "cloud", x, y - 4, 2);
+  x += ic;
+  keep.forEach((i) => {
+    x += gap;
+    if (i === 2) { icon(port, w.c === "snow" ? "flake" : "drop", x, y + 2, 2, stale ? C.pDim : undefined); x += mk; }
+    ptxt(port, parts[i][0], "r", parts[i][1], x, y, "l"); x += tw(port, parts[i][0], "r");
+  });
+}
+// the chatbox: one message in 15 px capitals across the curve, wrapped to two lines if needed
+function roundChat(port, d, b, h, hs) {
+  roundBand(port, CH_Y, WX_Y - 1, C.parch, C.parchLo);
+  const l1 = CH_Y + 3, l2 = CH_Y + 21, lim = [2 * chord(l1 + 15) - 14, 2 * chord(l2 + 15) - 14];
+  const msg = chatMessage(d, b, h, hs);
+  let lines = wrap(port, msg, lim, "r");
+  // two lines: break where they come out closest in width, so no word is left alone on line 2
+  if (lines[1] && lines.join(" ") === msg) {
+    const ws = msg.split(" ");
+    let best = -1;
+    for (let k = 1; k < ws.length; k++) {
+      const a = ws.slice(0, k).join(" "), c = ws.slice(k).join(" "), wa = tw(port, a, "r"), wc = tw(port, c, "r");
+      if (wa <= lim[0] && wc <= lim[1] && (best < 0 || Math.abs(wa - wc) < best)) { best = Math.abs(wa - wc); lines = [a, c]; }
+    }
+  }
+  if (lines[0]) txtFlat(port, lines[0], "r", C.ink, RC, l1, "c");
+  if (lines[1]) txtFlat(port, lines[1], "r", C.ink, RC, l2, "c");
+}
+// ==== layout: round end ====
+
+// The still parts of the face (the C start frame's picture, see roundStill / squareStill), and
+// the whole face; each watch's build carries only its own layout.
+function drawStill(port) { if (ROUND) roundStill(port); else squareStill(port); }
+function drawFace(port) {
+  const d = new Date(), b = batt(), h = health(), hs = hiscoreView(d);
+  if (ROUND) roundFace(port, d, b, h, hs); else squareFace(port, d, b, h, hs);
+}
 
 // What the hiscores panel shows, per mode: title / right / sub / bar fraction / icon, or a msg.
 // The phone sends finished numbers per skill: l = level, r = xp to next level (0 = maxed),
-// f = % through the level, g = xp gained today.
+// f = % through the level, g = xp gained today; plus ac (account type), lu (latest level-up:
+// [skill, level, unix time]) and kc (the chosen boss or clue: {l label, s score, k rank}).
 // Which game's block the panel shows now. With both games on: alternate every minute ("min"), at
 // the rotate speed ("rot"), or keep Old School in the panel and put RS3 in the chatbox ("chat").
 function rotSlot(d) { return Math.floor((d.getHours() * 60 + d.getMinutes()) / Math.max(1, cfg.rotMin)); }
@@ -414,13 +692,19 @@ function blockIndex(d, n) {
   if (n < 2 || cfg.swap === "chat") return 0;
   return cfg.swap === "rot" ? rotSlot(d) % n : d.getMinutes() % n;
 }
+// a level-up from the last hour, if level-up moments are on
+function freshLevelUp(s) {
+  return cfg.cm.indexOf("l") >= 0 && s && s.lu && Date.now() / 1000 - s.lu[2] < 3600 ? s.lu : null;
+}
 function hiscoreView(d) {
+  if (cfg.hsMode === "ge") return geView();
   const bl = data.hs || [];
   if (!bl.length) return { msg: "Set name in Settings" };
+  if (cfg.hsMode === "kc") return kcView(bl);
   const s = bl[blockIndex(d, bl.length)];
   const v = blockView(d, s, sameTick(bl.length) ? bl.length : 1);
   const tag = s && s.gm === "rs3" ? "RS3" : "OSRS";
-  if (bl.length > 1) { if (v.msg) v.msg = tag + ": " + v.msg; else v.name = tag; }   // tag which game this is
+  if (bl.length > 1) { if (v.msg) v.msg = tag + ": " + v.msg; else v.name = v.tag = tag; }   // tag which game this is
   return v;
 }
 // share = how many games take turns on the rotation clock. Each game's skill moves on once per
@@ -429,7 +713,11 @@ function blockView(d, s, share) {
   if (!s) return { msg: "Set name in Settings" };
   if (s.err) return { msg: s.n + ": " + s.err };
   if (!s.l || !s.r) return { msg: "Hiscores loading..." };
-  const n = s.l.length;
+  const n = s.l.length, lu = freshLevelUp(s);
+  if (lu && lu[0] < n) {                               // a new level wins the panel for an hour
+    return { icon: "levelup", big: "" + lu[1], max: true, title: skName(s, lu[0]) + " " + lu[1], right: "", sub: "Level up!", subCol: C.pTitle,
+      name: s.n, ac: s.ac, frac: s.f[lu[0]] / 100, gm: s.gm };
+  }
   let i = s.gm === "rs3" ? cfg.skill3 : cfg.skill;
   if (cfg.hsMode === "rotate") i = Math.floor(rotSlot(d) / (share || 1)) % n;
   else if (cfg.hsMode === "next") {                 // furthest through its level, not maxed
@@ -440,47 +728,90 @@ function blockView(d, s, share) {
     let tot = 0, top = -1, topG = 0;
     const g = s.g || [];
     for (let k = 0; k < g.length; k++) { tot += g[k]; if (g[k] > topG) { topG = g[k]; top = k; } }
-    if (top < 0) return { icon: "total", title: "No xp yet today", right: "" + s.tot, sub: "Go train something!", name: s.n, frac: 0, gm: s.gm };
-    return { icon: skIcon(s, top), title: "+" + kfmt(tot) + " xp today", right: "",
-      sub: skName(s, top) + " +" + kfmt(topG), name: s.n, frac: s.f[top] / 100, max: s.r[top] === 0, gm: s.gm };
+    if (top < 0) return { icon: "total", big: "+0", title: "No xp yet today", right: "" + s.tot, rIcon: "total", sub: "Go train something!", name: s.n, ac: s.ac, frac: 0, gm: s.gm };
+    return { icon: skIcon(s, top), big: "+" + kfmt(tot), title: "+" + kfmt(tot) + " xp today", right: "",
+      sub: skName(s, top) + " +" + kfmt(topG), name: s.n, ac: s.ac, frac: s.f[top] / 100, max: s.r[top] === 0, gm: s.gm };
   }
   if (i < 0 || i >= n) i = 0;
   const lv = s.l[i], max = s.r[i] === 0;
-  return { icon: skIcon(s, i), title: skName(s, i) + " " + lv, right: "" + s.tot,
+  return { icon: skIcon(s, i), big: "" + lv, title: skName(s, i) + " " + lv, right: "" + s.tot, rIcon: "total",
     sub: max ? "Maxed!" : kfmt(s.r[i]) + " xp to " + (lv + 1),
-    name: s.n, frac: max ? 1 : s.f[i] / 100, max: max, skill: i, rem: s.r[i], gm: s.gm, blk: s };
+    name: s.n, ac: s.ac, frac: max ? 1 : s.f[i] / 100, max: max, skill: i, rem: s.r[i], gm: s.gm, blk: s };
+}
+// boss kill count or clue total (Old School hiscores only)
+function kcView(bl) {
+  let s = null;
+  for (let k = 0; k < bl.length; k++) if (bl[k] && bl[k].gm !== "rs3") s = bl[k];
+  if (!s) return { msg: "Kill counts need an Old School name" };
+  if (s.err) return { msg: s.n + ": " + s.err };
+  const kc = s.kc;
+  if (!kc) return { msg: "Pick a boss or clue in Settings" };
+  const clue = kc.l.indexOf("lue") >= 0;
+  return { icon: clue ? "clue" : "boss", big: kc.s > 0 ? kfmt(kc.s) : "0", title: kc.l, right: kc.s > 0 ? kfmt(kc.s) : "0",
+    sub: kc.s > 0 ? (kc.k > 0 ? "Rank " + kfmt(kc.k) : "Ranked") : "Not ranked yet", name: s.n, ac: s.ac };
+}
+// Grand Exchange price watch: {n name, p price, c % change on yesterday}
+function geView() {
+  const g = data.ge;
+  if (!g) return { msg: "Set a GE item in Settings" };
+  if (g.err) return { msg: "GE: " + g.err };
+  const up = g.c >= 0;
+  // the price goes under the name: a long item name leaves no room beside it
+  return { icon: "coins", big: kfmt(g.p), title: g.n, right: "", sub: kfmt(g.p) + " gp, " + (up ? "+" : "") + g.c + "% today",
+    subCol: g.c > 0 ? C.green : g.c < 0 ? C.red : C.pText, name: "GE" };
 }
 
-// Chatbox: a warning always wins; otherwise the messages chosen in cfg.cm take turns each minute,
-// and with none chosen (or none with anything to say) it shows the date.
+// Chatbox: a warning always wins; then a fresh level-up gets every other minute; otherwise the
+// messages chosen in cfg.cm take turns each minute, and with none (or nothing to say) the date.
+// cm letters: r rain, u sunrise/sunset, f feels like, d wind, s steps, x xp, l level-ups,
+// g GE price, c charging, w welcome.
 function chatMessage(d, b, h, hs) {
   if (!btOk) return "Phone link lost. Data will wait.";
   if (b && !b.chg && b.pct <= 15) return "Low hitpoints! Charge your watch.";
   if (h.lock === "off") return "Turn on Pebble Health in the Pebble app.";
   if (h.lock === "perm") return "Allow Health for this face in the Pebble app.";
   const bl = data.hs || [];
-  if (cfg.swap === "chat" && bl.length > 1) {          // RS3 lives in the chatbox in this mode
+  for (let k = 0; k < bl.length; k++) {
+    const lu = freshLevelUp(bl[k]);
+    if (lu && d.getMinutes() % 2 === 0) return "Level up! " + skName(bl[k], lu[0]) + " " + lu[1] + ".";
+  }
+  if (cfg.swap === "chat" && bl.length > 1 && cfg.hsMode !== "kc" && cfg.hsMode !== "ge") {   // RS3 lives in the chatbox
     const r = blockView(d, bl[1]);
     return r.msg ? "RS3: " + r.msg : "RS3 " + r.title + ". " + r.sub + ".";
   }
-  const on = (k) => cfg.cm.indexOf(k) >= 0, msgs = [];
-  if (on("r") && data.w && data.w.rt) msgs.push((data.w.c === "snow" ? "Snow" : "Rain") + " likely around " + data.w.rt + ".");
+  const on = (k) => cfg.cm.indexOf(k) >= 0, msgs = [], w = data.w, t = Date.now() / 1000;
+  const wind = cfg.units === "F" ? " mph" : " km/h";
+  if (on("r") && w) {
+    const mins = w.rs ? Math.round((w.rs - t) / 60) : -1;
+    const what = w.c === "snow" ? "Snow" : "Rain";
+    if (w.rs && mins > 0 && mins < 120) msgs.push(what + " likely in " + mins + " min.");
+    else if (w.rs && mins <= 0 && mins > -60) msgs.push(what + " likely this hour.");
+    else if (w.rt) msgs.push(what + " likely around " + w.rt + ".");
+  }
+  if (on("u") && w && w.sr) {
+    if (t < w.srT) msgs.push("Sunrise at " + w.sr + ".");
+    else if (t < w.ssT) msgs.push("Sunset at " + w.ss + ".");
+    else if (w.sr2) msgs.push("Sunrise at " + w.sr2 + " tomorrow.");
+  }
+  if (on("f") && w && w.fl !== undefined) msgs.push("Feels like " + w.fl + "°.");
+  if (on("d") && w && w.ws !== undefined) msgs.push("Wind " + w.ws + wind + (w.wd ? " from the " + w.wd : "") + ".");
   if (on("s") && h.steps >= cfg.stepGoal) msgs.push("Step goal reached. Nice work!");
   else if (on("s") && h.steps) msgs.push(h.steps + " steps today, " + (cfg.stepGoal - h.steps) + " to go.");
   if (on("x") && hs && hs.rem) msgs.push(kfmt(hs.rem) + " xp to " + skName(hs.blk, hs.skill) + " " + (hs.blk.l[hs.skill] + 1) + ".");
+  if (on("g") && data.ge && !data.ge.err) msgs.push("GE: " + data.ge.n + " " + kfmt(data.ge.p) + " (" + (data.ge.c >= 0 ? "+" : "") + data.ge.c + "%).");
   if (on("c") && b && b.chg) msgs.push("Hitpoints regenerating (charging).");
   if (on("w")) msgs.push("Welcome to Gielinor.");
   if (!msgs.length) return DAYS[d.getDay()] + ", " + d.getDate() + " " + MON[d.getMonth()] + " " + d.getFullYear() + ".";
   return msgs[d.getMinutes() % msgs.length];
 }
 
-// Word-wrap into two lines; the first line is shorter by `indent` (the speaker's name).
-function wrap(port, s, maxW, indent) {
+// Word-wrap into two lines no wider than widths[0] and widths[1] in font f; "..." marks a cut.
+function wrap(port, s, widths, f) {
   const words = s.split(" "), out = ["", ""];
   let li = 0;
   for (let k = 0; k < words.length; k++) {
     const tryS = out[li] ? out[li] + " " + words[k] : words[k];
-    if (tw(port, tryS, "n") <= maxW - (li === 0 ? indent : 0)) out[li] = tryS;
+    if (tw(port, tryS, f) <= widths[li]) out[li] = tryS;
     else if (li === 0) { li = 1; out[1] = words[k]; }
     else { out[1] += "..."; break; }
   }
@@ -520,7 +851,7 @@ const message = new Message({
     const cf = map.get("CFG");
     if (cf && cf !== lastCfg) {
       lastCfg = cf; touched = true;
-      try { const k = JSON.parse(cf); for (const key in cfg) if (key in k) cfg[key] = k[key]; } catch (e) { console.log("cfg err " + e); }
+      try { const k = JSON.parse(cf); for (const key in cfg) if (key in k) cfg[key] = k[key]; applyTheme(cfg.theme); } catch (e) { console.log("cfg err " + e); }
       try { localStorage.setItem("c", cf); } catch (e) {}
     }
     const dd = map.get("DATA");
@@ -529,7 +860,7 @@ const message = new Message({
       try {
         const j = JSON.parse(dd);
         if (j && j.v === 2) {
-          if (DEMO) { if (!j.w) j.w = DEMO_DATA.w; if (!j.hs || !j.hs.length) j.hs = DEMO_DATA.hs; }   // keep sample panels in renders
+          if (DEMO) { const dd = demoData(); if (!j.w) j.w = dd.w; if (!j.hs || !j.hs.length) j.hs = dd.hs; if (!j.ge) j.ge = dd.ge; }   // keep sample panels in renders
           data = j;
         }
       } catch (e) { console.log("data err " + e); }
@@ -552,7 +883,13 @@ setTimeout(() => {
   watch.addEventListener("minutechange", () => { maybePoke(); redraw(); });
   watch.addEventListener("connected", () => { let ok = btOk; try { ok = !!watch.connected.app; } catch (e) {} if (ok !== btOk) { btOk = ok; redraw(); } });
   watch.addEventListener("health", redraw);
-  try { const pc = localStorage.getItem("c"); if (pc) { const k = JSON.parse(pc); for (const key in cfg) if (key in k) cfg[key] = k[key]; lastCfg = pc; } } catch (e) {}
+  // Timeline Quick View: the event carries no value, but Piu shrinks the app to the part of the
+  // screen still visible (228 -> 170 on the Time 2 emulator: a 58 px peek), so read that
+  watch.addEventListener("resize", () => {
+    const p = H - app.height;
+    if (p !== peek) { peek = p > 0 ? p : 0; redraw(); }
+  });
+  try { const pc = localStorage.getItem("c"); if (pc) { const k = JSON.parse(pc); for (const key in cfg) if (key in k) cfg[key] = k[key]; lastCfg = pc; applyTheme(cfg.theme); } } catch (e) {}
   if (!DEMO) { try { const pd = localStorage.getItem("d"); if (pd) { const j = JSON.parse(pd); if (j && j.v === 2) { data = j; lastData = pd; } } } catch (e) {} }
   booted = true;
   redraw();

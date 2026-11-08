@@ -2,7 +2,8 @@
 <!--
   Gielinor HUD settings page. tools/gen_settings.py inlines this file, the face's drawing code
   (main.js, between the "preview" markers) and the pixel fonts into src/pkjs/settings_page.js.
-  The phone fills in __CFG__, __DATA__ and __VERSION__ and opens it as a data: page.
+  The phone fills in __CFG__, __DATA__, __ACTS__ (hiscores activity names), __PLATFORM__ (emery or
+  gabbro: the preview draws that watch's layout) and __VERSION__ and opens it as a data: page.
   No <select> anywhere: the Pebble app's webview opened native pickers at the top of the screen.
 -->
 <html><head><meta charset="utf-8">
@@ -20,11 +21,19 @@ button.on.on{background:#5c4f39;color:var(--y);box-shadow:inset 1px 1px 0 var(--
 .top{position:sticky;top:0;z-index:5;display:flex;gap:10px;padding:8px 10px;background:#2b2620;border-bottom:3px solid #000}
 .pv{flex:none;padding:3px;border-radius:3px;line-height:0;cursor:pointer}
 #face{width:150px;height:171px}
+.round #face{width:150px;height:150px;border-radius:50%}
+.themes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.themes button{padding:6px 4px 8px;text-align:center;color:#d4c49a;font-weight:700;font-size:13px}
+.themes canvas{display:block;width:100%;height:auto;margin-bottom:6px;image-rendering:pixelated}
+.round .themes canvas{border-radius:50%}
+.kclist{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;max-height:260px;overflow-y:auto;margin-top:6px}
+.kclist button{padding:8px 8px;text-align:left;font-size:13px;color:#d4c49a;background:var(--stone);border:2px solid #000;box-shadow:inset 1px 1px 0 var(--hi),inset -1px -1px 0 var(--lo)}
+.toggles h4{margin:14px 0 2px;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
 .side{flex:1;display:flex;flex-direction:column;min-width:0}
 .title{font-weight:800;color:var(--y);text-shadow:2px 2px 0 #000;font-size:18px;line-height:1.15}
 .ver{color:var(--o);font-size:11px}
 .pvnote{color:var(--dim);font-size:11px;margin-top:4px}
-.tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:auto}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:auto}
 .tabs button{padding:9px 2px;font-weight:700;font-size:13px;color:#d4c49a}
 .pane{display:none;padding:2px 12px 18px}.pane.on{display:block}
 h2{margin:16px 0 7px;font-size:14px;color:var(--o);text-shadow:1px 1px 0 #000}
@@ -61,13 +70,13 @@ input{width:100%;padding:10px;background:#fffbe9;color:var(--ink);border:2px sol
 .foot{position:sticky;bottom:0;padding:10px 12px 14px;background:var(--bg);border-top:2px solid #000}
 #save{display:block;width:100%;padding:13px;background:var(--y);color:#000;font-weight:800;border:2px solid #000;font-size:16px}
 </style></head><body>
-<div class="top">
+<div class="top" id="top">
   <div class="pv stone" id="pv"><canvas id="face" width="200" height="228"></canvas></div>
   <div class="side">
     <div class="title">Gielinor HUD</div>
     <div class="ver">v__VERSION__ · fan-made, not affiliated with Jagex</div>
     <div class="pvnote" id="pvnote"></div>
-    <div class="tabs"><button type="button" class="on" data-p="hs">Hiscores</button><button type="button" data-p="wx">Weather</button><button type="button" data-p="orb">Orbs</button><button type="button" data-p="chat">Chatbox</button></div>
+    <div class="tabs"><button type="button" class="on" data-p="hs">Hiscores</button><button type="button" data-p="wx">Weather</button><button type="button" data-p="orb">Orbs</button><button type="button" data-p="chat">Chatbox</button><button type="button" data-p="look">Look</button></div>
   </div>
 </div>
 
@@ -92,6 +101,8 @@ input{width:100%;padding:10px;background:#fffbe9;color:var(--ink);border:2px sol
     <button type="button" data-v="rotate"><b>Rotate</b><small>A new skill every few minutes</small></button>
     <button type="button" data-v="next"><b>Next level</b><small>The skill closest to levelling</small></button>
     <button type="button" data-v="today"><b>XP today</b><small>What you've gained since midnight</small></button>
+    <button type="button" data-v="kc"><b>Kill count</b><small>A boss or clue total (Old School)</small></button>
+    <button type="button" data-v="ge"><b>GE price</b><small>Watch one item's price</small></button>
   </div>
   <div class="inl" id="rotA"><div class="seg" data-k="rotMin"><button type="button" data-v="1">1 min</button><button type="button" data-v="5">5 min</button><button type="button" data-v="15">15 min</button><button type="button" data-v="60">1 hour</button></div></div>
 
@@ -101,10 +112,25 @@ input{width:100%;padding:10px;background:#fffbe9;color:var(--ink);border:2px sol
     <div class="skills" id="skills"></div>
   </div>
 
+  <div id="kcRow">
+    <h2>Boss or clue: <span id="kcSel"></span></h2>
+    <input id="kcFind" placeholder="Search, e.g. Zulrah or clue" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <div class="kclist" id="kclist"></div>
+  </div>
+  <div class="card" id="geCard"><h3>Grand Exchange item</h3>
+    <input id="geItem" placeholder="e.g. Abyssal whip" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <div class="note" style="color:#6b5a3a">Prices from the OSRS Wiki, refreshed every 30 minutes. Shows in the panel (GE price mode) and as a chatbox message if that's on.</div>
+  </div>
+
   <div id="swapRow">
     <h2>With both games</h2>
     <div class="seg" data-k="swap"><button type="button" data-v="min">Swap each minute</button><button type="button" data-v="rot">At rotate speed</button><button type="button" data-v="chat">RS3 in chatbox</button></div>
     <div class="inl" id="rotB"><div class="seg" data-k="rotMin"><button type="button" data-v="1">1 min</button><button type="button" data-v="5">5 min</button><button type="button" data-v="15">15 min</button><button type="button" data-v="60">1 hour</button></div></div>
+  </div>
+  <h2>Extras</h2>
+  <div class="toggles">
+    <button type="button" data-tg="helm">Account helm beside my name (Ironman, Hardcore, Ultimate)</button>
+    <button type="button" data-cm="l">Level-up moments (panel and chatbox, for an hour)</button>
   </div>
   <div class="note">Hiscores refresh every 3 hours and whenever you save.</div>
 </div>
@@ -131,20 +157,50 @@ input{width:100%;padding:10px;background:#fffbe9;color:var(--ink);border:2px sol
 <div class="pane" id="chat">
   <h2>Chatbox messages</h2>
   <div class="toggles">
-    <button type="button" data-cm="r">Rain or snow on the way</button>
+    <h4>Weather</h4>
+    <button type="button" data-cm="r">Rain or snow on the way (with a countdown)</button>
+    <button type="button" data-cm="u">Next sunrise or sunset</button>
+    <button type="button" data-cm="f">Feels-like temperature</button>
+    <button type="button" data-cm="d">Wind speed and direction</button>
+    <h4>You</h4>
     <button type="button" data-cm="s">Steps left to your goal</button>
-    <button type="button" data-cm="x">XP to your next level</button>
     <button type="button" data-cm="c">Charging</button>
+    <h4>Game</h4>
+    <button type="button" data-cm="x">XP to your next level</button>
+    <button type="button" data-cm="l">Level-ups</button>
+    <button type="button" data-cm="g">Grand Exchange price</button>
+    <h4>Other</h4>
     <button type="button" data-cm="w">Welcome to Gielinor</button>
   </div>
+  <div class="card" id="geCard2"><h3>Grand Exchange item</h3>
+    <input id="geItem2" placeholder="e.g. Abyssal whip" autocapitalize="off" autocorrect="off" spellcheck="false">
+  </div>
   <div class="note">The chosen messages take turns each minute. With none on, the chatbox shows the date. Warnings (low battery, phone disconnected, Health off) always show.</div>
+</div>
+
+<div class="pane" id="look">
+  <h2>Theme</h2>
+  <div class="themes" data-k="theme">
+    <button type="button" data-v="stone"><canvas data-th="stone"></canvas>Classic</button>
+    <button type="button" data-v="dark"><canvas data-th="dark"></canvas>Dark</button>
+    <button type="button" data-v="bright"><canvas data-th="bright"></canvas>Bright</button>
+  </div>
+  <div class="note">Classic is the stone look of the game's classic interface. Dark follows the modern client. Bright is easiest to read in sunlight. Classic also matches the instant start screen; the others take on their colours a moment after the face opens.</div>
 </div>
 
 <div class="foot"><button type="button" id="save">Save</button></div>
 
 <script>
 "use strict";
-var S = __CFG__, PHONE = __DATA__;
+var S = __CFG__, PHONE = __DATA__, ACTS = __ACTS__, PLATFORM = __PLATFORM__;
+var ROUNDW = PLATFORM === "gabbro", FW = ROUNDW ? 260 : 200, FH = ROUNDW ? 260 : 228;
+// the hiscores activity names, from your last refresh; this list until the phone has one
+ACTS = ACTS || ["Clue Scrolls (all)", "Clue Scrolls (beginner)", "Clue Scrolls (easy)", "Clue Scrolls (medium)", "Clue Scrolls (hard)", "Clue Scrolls (elite)", "Clue Scrolls (master)",
+  "Abyssal Sire", "Alchemical Hydra", "Araxxor", "Barrows Chests", "Callisto", "Cerberus", "Chambers of Xeric", "Commander Zilyana", "Corporeal Beast", "Dagannoth Rex",
+  "Duke Sucellus", "General Graardor", "Giant Mole", "Grotesque Guardians", "Kalphite Queen", "King Black Dragon", "Kraken", "Kree'Arra", "K'ril Tsutsaroth", "Nex",
+  "Nightmare", "Phantom Muspah", "Sarachnis", "Scorpia", "Tempoross", "The Gauntlet", "The Corrupted Gauntlet", "The Leviathan", "The Whisperer", "Theatre of Blood",
+  "Thermonuclear Smoke Devil", "Tombs of Amascut", "TzKal-Zuk", "TzTok-Jad", "Vardorvis", "Venenatis", "Vet'ion", "Vorkath", "Wintertodt", "Zalcano", "Zulrah"];
+var BOSSY = /^(Grid|League|Deadman|Bounty|LMS|PvP|Soul Wars|Rifts|Colosseum|Collections)/;   // points and ranks, not kill counts
 var FONTS = /*FONTS*/null;
 var RealDate = Date, offsetMin = 0;
 function FakeDate() { return new RealDate(RealDate.now() + offsetMin * 60000); }
@@ -154,10 +210,10 @@ FakeDate.now = function () { return RealDate.now() + offsetMin * 60000; };
 function makeFace(screen, Style, Battery, Health, watch, DEMO, Date) {
 /*FACE*/
 return { draw: drawFace, cfg: cfg, setData: function (d) { data = d; }, icon: icon, orb: orb, orbValue: orbValue,
-  DEMO_DATA: DEMO_DATA, SKILLS: SKILLS, skName: skName, skIcon: skIcon, ORB_LOOK: ORB_LOOK, C: C };
+  DEMO_DATA: demoData(), SKILLS: SKILLS, skName: skName, skIcon: skIcon, ORB_LOOK: ORB_LOOK, C: C, applyTheme: applyTheme };
 }
 var SAMPLE_H = { "step count": 5120, "sleep seconds": 26700, "active seconds": 2040, "walked distance": 3800, "active calories": 312 };
-var face = makeFace({ width: 200, height: 228 }, function (o) { this.font = o.font; },
+var face = makeFace({ width: FW, height: FH }, function (o) { this.font = o.font; },
   function () { this.sample = function () { return { percent: 87, charging: false }; }; },
   { access: { available: 1, permission: 2 }, metric: { accessible: function () { return 3; },
     query: function (o) { return SAMPLE_H[o.metric] || 0; }, get: function () { return 72; } } },
@@ -229,13 +285,25 @@ function previewData() {
     var cv = S.units === "F" ? function (t) { return Math.round(t * 9 / 5 + 32); } : function (t) { return Math.round((t - 32) * 5 / 9); };
     w = JSON.parse(JSON.stringify(w)); w.t = cv(w.t); w.hi = cv(w.hi); w.lo = cv(w.lo); w.u = S.units;
   }
-  var d = { v: 2, at: 0, w: w, hs: [] };
+  var d = { v: 2, at: 0, w: w, hs: [], ge: PHONE && PHONE.ge && !PHONE.ge.err && S.geItem ? PHONE.ge : { n: S.geItem || "Abyssal whip", p: 691188, c: 1.2 } };
   if (S.osrsOn) d.hs.push(block("osrs"));
   if (S.rs3On) d.hs.push(block("rs3"));
+  d.hs.forEach(function (b) {
+    b.ac = S[b.gm + "Acct"];
+    if (b.gm === "osrs" && S.kcName && (!b.kc || b.kc.n !== S.kcName)) b.kc = { l: kcShort(S.kcName), s: 1204, k: 5123, n: S.kcName };
+  });
   return d;
+}
+function kcShort(n) {   // the phone's label for the watch (kcLabel in index.js)
+  var m = /^Clue Scrolls \((\w+)\)$/.exec(n);
+  if (m) return m[1] === "all" ? "All clues" : m[1].charAt(0).toUpperCase() + m[1].slice(1) + " clues";
+  n = n.replace(/^The /, "").replace(/: Challenge Mode$/, " CM").replace(/: Hard Mode$/, " HM").replace(/: Expert Mode$/, " Expert");
+  n = n.replace("Theatre of Blood", "ToB").replace("Chambers of Xeric", "CoX").replace("Tombs of Amascut", "ToA").replace("Thermonuclear Smoke Devil", "Thermy");
+  return n.length > 13 ? n.slice(0, 12) + "." : n;
 }
 function faceCfg() {
   var c = face.cfg;
+  c.theme = S.theme; c.helm = S.helm; face.applyTheme(S.theme);
   c.stepGoal = S.stepGoal; c.sleepGoal = S.sleepGoal; c.activeGoal = S.activeGoal; c.distGoal = S.distGoal; c.calGoal = S.calGoal;
   c.orbs = S.orbs; c.units = S.units; c.hsMode = S.hsMode; c.skill = S.osrsSkill; c.skill3 = S.rs3Skill;
   c.swap = S.swap; c.rotMin = S.rotMin; c.cm = S.cm;
@@ -305,6 +373,25 @@ function renderGoals() {
   box.innerHTML = html || '<div class="note">None of your orbs needs a goal.</div>';
 }
 
+function renderThemes() {
+  faceCfg(); face.setData(previewData());
+  var cs = all("[data-th]");
+  for (var i = 0; i < cs.length; i++) {
+    var c = cs[i]; c.width = FW; c.height = FH;
+    face.cfg.theme = c.getAttribute("data-th"); face.applyTheme(face.cfg.theme);
+    face.draw(new Port(c));
+  }
+  face.applyTheme(S.theme);
+}
+function renderKc() {
+  var q = $("kcFind").value.toLowerCase(), box = $("kclist"), html = "";
+  ACTS.forEach(function (n) {
+    if (BOSSY.test(n) || (q && n.toLowerCase().indexOf(q) < 0)) return;
+    html += '<button type="button" data-kc="' + n.replace(/"/g, "&quot;") + '"' + (S.kcName === n ? ' class="on"' : "") + ">" + n.replace(/</g, "&lt;") + "</button>";
+  });
+  box.innerHTML = html || '<div class="note">No match.</div>';
+  $("kcSel").textContent = S.kcName || "none yet";
+}
 function paint() {
   var g = all("[data-k]");
   for (var i = 0; i < g.length; i++) {
@@ -313,13 +400,17 @@ function paint() {
   }
   var t = all("[data-cm]");
   for (i = 0; i < t.length; i++) t[i].classList.toggle("on", S.cm.indexOf(t[i].getAttribute("data-cm")) >= 0);
+  t = all("[data-tg]");
+  for (i = 0; i < t.length; i++) t[i].classList.toggle("on", !!S[t[i].getAttribute("data-tg")]);
   var both = game() === "both";
   show("osrsCard", S.osrsOn); show("rs3Card", S.rs3On);
   show("rotA", S.hsMode === "rotate");
   show("skillRow", S.hsMode === "pick"); show("skGame", both);
   show("swapRow", both); show("rotB", both && S.swap === "rot" && S.hsMode !== "rotate");
   show("cityRow", S.loc === "city");
-  renderSkills(); renderOrbs(); renderGoals(); drawPreview();
+  show("kcRow", S.hsMode === "kc"); show("geCard", S.hsMode === "ge"); show("geCard2", S.cm.indexOf("g") >= 0 && S.hsMode !== "ge");
+  if (S.hsMode === "kc") renderKc();
+  renderSkills(); renderOrbs(); renderGoals(); renderThemes(); drawPreview();
 }
 
 // Keep what you tapped where it is. Hiding a block below it (the skill grid, say) shortens the
@@ -359,6 +450,10 @@ function apply(b, t, k, v) {
   else if (b.hasAttribute("data-goal")) {
     var g = GOALS[b.getAttribute("data-goal")], n = Math.round((S[g[0]] + g[2] * +b.getAttribute("data-d")) * 10) / 10;
     S[g[0]] = Math.min(g[4], Math.max(g[3], n));
+  } else if (b.hasAttribute("data-tg")) {
+    var tg = b.getAttribute("data-tg"); S[tg] = !S[tg];
+  } else if (b.hasAttribute("data-kc")) {
+    S.kcName = b.getAttribute("data-kc");
   } else if (b.hasAttribute("data-cm")) {
     var f = b.getAttribute("data-cm");
     S.cm = S.cm.indexOf(f) >= 0 ? S.cm.replace(f, "") : S.cm + f;
@@ -369,11 +464,17 @@ function apply(b, t, k, v) {
   $(id).value = S[id];
   $(id).addEventListener("input", function () { S[id] = this.value; if (id !== "city") { renderSkills(); drawPreview(); } });
 });
+["geItem", "geItem2"].forEach(function (id) {   // one setting, shown in Hiscores and in Chatbox
+  $(id).value = S.geItem || "";
+  $(id).addEventListener("input", function () { S.geItem = this.value; $(id === "geItem" ? "geItem2" : "geItem").value = this.value; drawPreview(); });
+});
+$("kcFind").addEventListener("input", renderKc);
+if (ROUNDW) { document.body.classList.add("round"); $("face").width = FW; $("face").height = FH; }
 $("pv").addEventListener("click", function () { paused = !paused; drawPreview(); });
 $("save").addEventListener("click", function () {
   var o = {}, k;
   for (k in S) o[k] = S[k];
-  o.osrsName = String(S.osrsName).trim(); o.rs3Name = String(S.rs3Name).trim(); o.city = String(S.city).trim();
+  o.osrsName = String(S.osrsName).trim(); o.rs3Name = String(S.rs3Name).trim(); o.city = String(S.city).trim(); o.geItem = String(S.geItem || "").trim();
   location.href = "pebblejs://close#" + encodeURIComponent(JSON.stringify(o));
 });
 

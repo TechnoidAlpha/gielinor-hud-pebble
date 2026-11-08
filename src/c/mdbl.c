@@ -11,8 +11,15 @@
 // is already on screen moves. The orb levels, weather, hiscores and chat text then fill in.
 // main.js paints the same frame until its saved data is restored (drawStill).
 
+// The Time 2 (emery, 200x228) gets the game-screen frame; the Round 2 (gabbro, 260x260, PBL_ROUND)
+// gets the minimap layout's frame. Both follow main.js drawStill pixel for pixel.
+#ifdef PBL_ROUND
+#define W 260
+#define H 260
+#else
 #define W 200
 #define H 228
+#endif
 
 static GContext *s_ctx;
 static void fill(uint32_t hex, int x, int y, int w, int h) {
@@ -20,13 +27,15 @@ static void fill(uint32_t hex, int x, int y, int w, int h) {
   graphics_context_set_fill_color(s_ctx, GColorFromHEX(hex));
   graphics_fill_rect(s_ctx, GRect(x, y, w, h), 0, GCornerNone);
 }
-// main.js panel() and well()
+// main.js panel() (the Time 2 frame only) and well()
+#ifndef PBL_ROUND
 static void panel(int x, int y, int w, int h) {
   fill(0x000000, x, y, w, h);
   fill(0xAAAA55, x + 1, y + 1, w - 2, h - 2);
   fill(0x555555, x + 2, y + 2, w - 3, h - 3);
   fill(0x555500, x + 2, y + 2, w - 4, h - 4);
 }
+#endif
 static void well(int x, int y, int w, int h) {
   fill(0x555555, x, y, w, h);
   fill(0x000000, x, y, w - 1, h - 1);
@@ -40,10 +49,26 @@ static void disc(int cx, int cy, int r, uint32_t col) {
     fill(col, cx - k, cy + dy, k * 2 + 1, 1);
   }
 }
-// main.js icon() at scale 1 (the orb glyphs): "07" then rows, '.' = transparent
+// main.js icon() at scale 1 (the Time 2 orb glyphs): "07" then rows, '.' = transparent
+#ifndef PBL_ROUND
 static void glyph7(const char *ic, int x, int y, uint32_t col) {
   for (int p = 0; p < 49; p++) if (ic[2 + p] != '.') fill(col, x + p % 7, y + p / 7, 1, 1);
 }
+#endif
+#ifndef PBL_ROUND
+// one status orb as main.js orb() draws it before any data: value plate, empty socket, glyph with
+// its dark outline. flip puts the plate on the right (the round layout's right-hand orbs).
+static void orb_still(int x, int y, const char *g, bool flip) {
+  int cx = flip ? x + 10 : x + 50, cy = y + 10;
+  well(flip ? x + 22 : x - 1, y + 1, 40, 19);
+  disc(cx, cy, 10, 0x000000);
+  disc(cx, cy, 9, 0x555555);
+  disc(cx, cy, 8, 0x000055);
+  glyph7(g, cx - 4, cy - 3, 0x000000); glyph7(g, cx - 2, cy - 3, 0x000000);
+  glyph7(g, cx - 3, cy - 4, 0x000000); glyph7(g, cx - 3, cy - 2, 0x000000);
+  glyph7(g, cx - 3, cy - 3, 0xFFFFFF);
+}
+#endif
 // text from the generated atlases: width = sum of advances, as Poco measures it
 static const SfGlyph *find(const SfFont *f, char c) {
   for (int i = 0; i < f->n; i++) if (f->g[i].ch == (uint8_t)c) return &f->g[i];
@@ -90,6 +115,95 @@ static const char *ORB_GLYPHS[4] = {
 static const char *DOW[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 static const char *MON[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
+static void clock_text(char *buf, size_t n, struct tm *t) {
+  int hh = t->tm_hour;
+  if (clock_is_24h_style()) snprintf(buf, n, "%02d:%02d", hh, t->tm_min);
+  else { hh %= 12; if (hh == 0) hh = 12; snprintf(buf, n, "%d:%02d", hh, t->tm_min); }
+}
+
+#ifdef PBL_ROUND
+// ---------------------------------------------------------------- Round 2: the minimap layout
+// main.js roundStill(): the stone frame, the clock viewport with the clock and date, the minimap,
+// the four bigger orbs, the chatbox band and the weather band. Constants follow main.js.
+#define RC (W / 2)
+#define CV_Y0 15
+#define CV_Y1 83
+#define CV_HW 84
+#define MM_Y 130
+#define MM_R 44
+#define CH_Y 177
+#define WX_Y 216
+#define RO_R 12
+#define RO_PW 46
+#define RO_PH 23
+// main.js chord(y, r): floor(sqrt(r^2 - (y + 0.5 - RC)^2)) = floor(isqrt(4r^2 - (2y + 1 - 2RC)^2) / 2)
+static int chord_r(int y, int r) {
+  int d = 2 * y + 1 - 2 * RC, v = 4 * r * r - d * d, k = 0;
+  if (v <= 0) return 0;
+  while ((k + 1) * (k + 1) <= v) k++;
+  return k / 2;
+}
+// main.js roundBand(): rows y0..y1 clipped to the screen circle; edge on the first and last row,
+// hi on the second when has_hi
+static void round_band(int y0, int y1, uint32_t fillc, uint32_t edge, bool has_hi, uint32_t hi) {
+  for (int y = y0; y <= y1; y++) {
+    int h = chord_r(y, RC);
+    if (h) fill(y == y0 || y == y1 ? edge : (has_hi && y == y0 + 1) ? hi : fillc, RC - h, y, 2 * h, 1);
+  }
+}
+// main.js icon() at scale 2 for the 7x7 orb glyphs
+static void glyph7x2(const char *ic, int x, int y, uint32_t col) {
+  for (int p = 0; p < 49; p++) if (ic[2 + p] != '.') fill(col, x + (p % 7) * 2, y + (p / 7) * 2, 2, 2);
+}
+static void draw_start(Layer *layer, GContext *ctx) {
+  s_ctx = ctx;
+  // roundBackdrop: dark outer line, lit edge, stone, the fixed grain scatter
+  fill(0x000000, 0, 0, W, H);
+  disc(RC, RC, RC - 1, 0x000000);
+  disc(RC, RC, RC - 2, 0xAAAA55);
+  disc(RC, RC, RC - 4, 0x555500);
+  for (int k = 0; k < 150; k++) {
+    int x = (k * 97 + 13) % 236 + 12, y = (k * 61 + 7) % 236 + 12, dx = x - RC, dy = y - RC;
+    if (dx * dx + dy * dy < (RC - 8) * (RC - 8)) fill(0x555555, x, y, 2, 1);
+  }
+  // roundClock: the viewport, then the clock and the date
+  for (int y = CV_Y0; y <= CV_Y1; y++) {
+    int h = chord_r(y, RC - 8);
+    if (h > CV_HW) h = CV_HW;
+    if (!h) continue;
+    bool edge = y == CV_Y0 || y == CV_Y1;
+    fill(edge ? 0x000000 : 0x555555, RC - h - 1, y, 2 * h + 2, 1);
+    if (!edge) fill(0x000000, RC - h, y, 2 * h, 1);
+  }
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+  char buf[16];
+  clock_text(buf, sizeof buf, t);
+  text_c(&SF_C5, 5, buf, 0xFFFF00, RC, 25);
+  snprintf(buf, sizeof buf, "%s %d %s", DOW[t->tm_wday], t->tm_mday, MON[t->tm_mon]);
+  text_c(&SF_N3, 3, buf, 0xFFAA00, RC, 64);
+  // roundMinimap
+  disc(RC, MM_Y, MM_R, 0x000000); disc(RC, MM_Y, MM_R - 1, 0xAAAA55); disc(RC, MM_Y, MM_R - 2, 0x555500);
+  disc(RC, MM_Y, MM_R - 7, 0x000000); disc(RC, MM_Y, MM_R - 8, 0x000000);
+  // roundOrb (empty): plate, socket, 2x glyph with its outline; main.js roundOrbSpot()
+  for (int i = 0; i < 4; i++) {
+    bool right = i >= 2;
+    int x = right ? 176 : 10, y = i % 2 ? 140 : 96;
+    int cy = y + RO_PH / 2, cx = right ? x + RO_R : x + RO_PW + 3 + RO_R, px = right ? x + 2 * RO_R + 4 : x;
+    well(px, y, RO_PW, RO_PH);
+    disc(cx, cy, RO_R + 1, 0x000000);
+    disc(cx, cy, RO_R, 0x555555);
+    disc(cx, cy, RO_R - 1, 0x000055);
+    int gx = cx - 7, gy = cy - 6;
+    glyph7x2(ORB_GLYPHS[i], gx - 1, gy, 0x000000); glyph7x2(ORB_GLYPHS[i], gx + 1, gy, 0x000000);
+    glyph7x2(ORB_GLYPHS[i], gx, gy - 1, 0x000000); glyph7x2(ORB_GLYPHS[i], gx, gy + 1, 0x000000);
+    glyph7x2(ORB_GLYPHS[i], gx, gy, 0xFFFFFF);
+  }
+  round_band(CH_Y, WX_Y - 1, 0xFFFFAA, 0xAA5500, false, 0);
+  round_band(WX_Y, H - 1, 0x555500, 0x000000, true, 0xAAAA55);
+}
+#else
+// ---------------------------------------------------------------- Time 2: the game screen
 static void draw_start(Layer *layer, GContext *ctx) {
   s_ctx = ctx;
   fill(0x000000, 0, 0, W, H);
@@ -99,24 +213,13 @@ static void draw_start(Layer *layer, GContext *ctx) {
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   char buf[16];
-  int hh = t->tm_hour;
-  if (clock_is_24h_style()) snprintf(buf, sizeof buf, "%02d:%02d", hh, t->tm_min);
-  else { hh %= 12; if (hh == 0) hh = 12; snprintf(buf, sizeof buf, "%d:%02d", hh, t->tm_min); }
+  clock_text(buf, sizeof buf, t);
   text_c(&SF_CLK, 4, buf, 0xFFFF00, 67, 14);
   snprintf(buf, sizeof buf, "%s %d %s", DOW[t->tm_wday], t->tm_mday, MON[t->tm_mon]);
   text_c(&SF_M, 2, buf, 0xFFAA00, 67, 58);
   // orbs: value plate, empty socket, glyph with its dark outline
   panel(134, 0, 66, 92);
-  for (int i = 0; i < 4; i++) {
-    int x = 137, y = 2 + 22 * i, cx = x + 50, cy = y + 10;
-    well(x - 1, y + 1, 40, 19);
-    disc(cx, cy, 10, 0x000000);
-    disc(cx, cy, 9, 0x555555);
-    disc(cx, cy, 8, 0x000055);
-    glyph7(ORB_GLYPHS[i], cx - 4, cy - 3, 0x000000); glyph7(ORB_GLYPHS[i], cx - 2, cy - 3, 0x000000);
-    glyph7(ORB_GLYPHS[i], cx - 3, cy - 4, 0x000000); glyph7(ORB_GLYPHS[i], cx - 3, cy - 2, 0x000000);
-    glyph7(ORB_GLYPHS[i], cx - 3, cy - 3, 0xFFFFFF);
-  }
+  for (int i = 0; i < 4; i++) orb_still(137, 2 + 22 * i, ORB_GLYPHS[i], false);
   // weather and hiscores panels, then the chatbox and its speaker
   panel(0, 92, W, 48);
   panel(0, 140, W, 52);
@@ -124,6 +227,7 @@ static void draw_start(Layer *layer, GContext *ctx) {
   fill(0xFFFFAA, 2, 194, W - 4, H - 196);
   text(&SF_N, "Gielinor: ", 0x0000AA, 6, 198);
 }
+#endif
 
 int main(void) {
   Window *w = window_create();
@@ -138,17 +242,21 @@ int main(void) {
   // Size the XS machine ourselves (honoured on PebbleOS >= 4.21, coredevices/PebbleOS#1621).
   // ALL of stack/slot/chunk must be non-zero or the record is rejected and the app falls back to
   // a machine too small to load.
-  // Measured on the SDK 4.33 emulator (OS heap "Used" at app exit, of 122568):
-  //   34816/40960 -> 117052  (5 KB left for PebbleOS: too tight)
-  //   28672/32768 -> 102716  (~20 KB left)  <- this record
-  //   28672/28672 ->  98620
-  // The face draws through ONE Port and keeps its icons as single strings in the archive, so it
-  // needs far less slot than the Content-tree faces. Re-check on the PT2 before raising either.
+  // Measured on the SDK 4.33 emulator (OS heap "Used" at app exit). Each watch builds only its
+  // own layout (tools/gen_layouts.py) and fonts (manifest.json), so the mods differ: emery 42.1 KB,
+  // gabbro 43.6 KB. Slot is the tight heap (the module's functions and tables, at start):
+  //   emery starts from 28672 (27648: "Slot allocation: failed"), gabbro from 29696 (28672 fails).
+  // Records below give each ~2 KB more; see docs/TECHNICAL.md for the worst-case runs.
+  // Re-check on real hardware before raising either.
   ModdableCreationRecord cr = {
     .recordSize = sizeof(cr),
     .stack = 6144,
-    .slot = 28672,
-    .chunk = 32768,
+#ifdef PBL_ROUND
+    .slot = 31744,   // starts from 29696 (28672 fails); ~2 KB margin
+#else
+    .slot = 30720,   // starts from 28672 (27648 fails); ~2 KB margin
+#endif
+    .chunk = 26624,
 #ifdef PBL_DEBUG
     .flags = kModdableCreationFlagDebug,
 #endif

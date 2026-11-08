@@ -8,12 +8,15 @@
  *    secure.runescape.com/m=hiscore_oldschool[_ironman|_hardcore_ironman|_ultimate]/index_lite.json
  *    Sends every skill's level + xp so the watch can rotate / pick / find the next level itself
  *    without another fetch. A local-midnight snapshot gives "XP gained today".
- * 3. Settings page: a data-URI HTML page (house pattern, no hosting, no Clay).
+ * 3. Grand Exchange price watch from the OSRS Wiki's real-time prices API (keyless; it asks for
+ *    a descriptive User-Agent, which the phone's own browser agent satisfies): the item name is
+ *    matched once against /mapping (cached id), then /latest and the daily /timeseries.
+ * 4. Settings page: a data-URI HTML page (house pattern, no hosting, no Clay).
  *
  * Message contract (JSON strings): CFG = display settings, DATA = {v:1, at, w:{...}, h:{...}}.
  * The watch sends RDY 1 on launch (resend everything) or RDY 2 as an overdue-data poke.
  */
-var APP_VERSION = "26.11.1";
+var APP_VERSION = "26.11.2";
 // MOCK: screenshots only (tools/shots.sh patches these two lines). Sends MOCK_W as the weather and
 // no hiscores, so a DEMO watch build keeps its sample hiscores. Never ship with MOCK = true.
 var MOCK = false;
@@ -26,9 +29,17 @@ var DEFAULTS = {
   loc: "gps", city: "", units: "C", wxMin: 30,
   stepGoal: 8000, sleepGoal: 8, activeGoal: 30, distGoal: 5, calGoal: 400,
   orbs: ["batt", "hr", "steps", "sleep"],   // what each orb shows, top to bottom
-  cm: "rsxcw",   // chatbox messages: r rain, s steps, x xp, c charging, w welcome; "" = the date only
+  // chatbox messages: r rain, u sunrise/sunset, f feels like, d wind, s steps, x xp to level,
+  // l level-ups, g GE price, c charging, w welcome; "" = the date only
+  cm: "rsxlcw",
+  theme: "stone",   // stone (classic) | dark | bright
+  helm: true,       // account-type helm beside your name
+  kcName: "",       // the boss or clue for the kill-count panel (a hiscores activity name)
+  geItem: "",       // the Grand Exchange item for the price watch
+  cmv: 2,           // settings version: 2 added the level-up message to existing chatbox choices
 };   // (no clock option: the clock follows the watch's 12/24-hour setting)
 var ORB_METRICS = ["batt", "hr", "steps", "sleep", "active", "dist", "cal"];
+var CM_LETTERS = "rufdsxlgcw";
 var SKILLS = ["Attack", "Defence", "Strength", "Hitpoints", "Ranged", "Prayer", "Magic", "Cooking",
   "Woodcutting", "Fletching", "Fishing", "Firemaking", "Crafting", "Smithing", "Mining", "Herblore",
   "Agility", "Thieving", "Slayer", "Farming", "Runecraft", "Hunter", "Construction", "Sailing"];
@@ -50,13 +61,14 @@ function getCfg() {
   }
   if (s.chat === false && !("cm" in s)) s.cm = "";   // the old chatbox on/off switch
   if (!s.osrsOn && !s.rs3On && ("osrsOn" in s)) s.osrsOn = true;   // one game is always on now
+  if (("cm" in s) && !s.cmv) { if (s.cm && s.cm.indexOf("l") < 0) s.cm += "l"; s.cmv = 2; }   // v26.11.2 level-ups
   for (var k in DEFAULTS) c[k] = (k in s && s[k] !== undefined) ? s[k] : DEFAULTS[k];
   return c;
 }
 function setCfg(c) { localStorage.setItem("cfg", JSON.stringify(c)); }
 function cfgForWatch(c) {
   return { stepGoal: c.stepGoal, sleepGoal: c.sleepGoal, activeGoal: c.activeGoal, distGoal: c.distGoal, calGoal: c.calGoal,
-    orbs: c.orbs, cm: c.cm,
+    orbs: c.orbs, cm: c.cm, theme: c.theme, helm: c.helm,
     hsMode: c.hsMode, skill: c.osrsSkill, skill3: c.rs3Skill, swap: c.swap, rotMin: c.rotMin, units: c.units };
 }
 
@@ -139,19 +151,28 @@ function fetchWeather(then) {
   var c = getCfg();
   withLocation(function (lat, lon) {
     var u = "https://api.open-meteo.com/v1/forecast?latitude=" + lat.toFixed(3) + "&longitude=" + lon.toFixed(3) +
-      "&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
-      "&hourly=precipitation_probability&forecast_hours=12&forecast_days=1&timezone=auto" +
-      (c.units === "F" ? "&temperature_unit=fahrenheit" : "");
+      "&current=temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m,wind_direction_10m" +
+      "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset" +
+      "&hourly=precipitation_probability&forecast_hours=12&forecast_days=2&timezone=auto&timeformat=unixtime" +
+      (c.units === "F" ? "&temperature_unit=fahrenheit&wind_speed_unit=mph" : "");
     get(u, function (j) {
       var cur = j.current || {}, dly = j.daily || {}, hr = j.hourly || {};
       var w = wmo(cur.weather_code, cur.is_day === 1);
-      var rt = "";
+      // times come back as unix seconds; hhmm() shows them in the forecast place's own time zone
+      var off = j.utc_offset_seconds || 0;
+      function hhmm(t) { var d = new Date((t + off) * 1000); var h = d.getUTCHours(), m = d.getUTCMinutes(); return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m; }
+      var rt = "", rs = 0;
       var pp = hr.precipitation_probability || [], tt = hr.time || [];
-      for (var i = 0; i < pp.length; i++) if (pp[i] >= 50) { rt = (tt[i] || "").slice(11, 16); break; }
+      for (var i = 0; i < pp.length; i++) if (pp[i] >= 50) { rs = tt[i] || 0; rt = rs ? hhmm(rs) : ""; break; }
+      var sr = dly.sunrise || [], ss = dly.sunset || [];
+      var DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
       data.w = {
         t: Math.round(cur.temperature_2m), c: w[0], d: w[1],
         hi: Math.round((dly.temperature_2m_max || [0])[0]), lo: Math.round((dly.temperature_2m_min || [0])[0]),
-        p: (dly.precipitation_probability_max || [0])[0] || 0, rt: rt, u: c.units, at: now(),
+        p: (dly.precipitation_probability_max || [0])[0] || 0, rt: rt, rs: rs, u: c.units, at: now(),
+        fl: Math.round(cur.apparent_temperature), ws: Math.round(cur.wind_speed_10m || 0),
+        wd: typeof cur.wind_direction_10m === "number" ? DIRS[Math.round(cur.wind_direction_10m / 45) % 8] : "",
+        sr: sr[0] ? hhmm(sr[0]) : "", srT: sr[0] || 0, ss: ss[0] ? hhmm(ss[0]) : "", ssT: ss[0] || 0, sr2: sr[1] ? hhmm(sr[1]) : "",
       };
       lastWx = now();
       if (then) then();
@@ -193,7 +214,31 @@ function hsDone(c, game, lv, xp, tot, then) {   // c = {rsn, acct} for this game
     localStorage.setItem("snap_" + game, JSON.stringify(snap));
   }
   var g = []; for (var m = 0; m < xp.length; m++) g[m] = Math.max(0, xp[m] - (snap.xp[m] || 0));
-  then({ gm: game, n: c.rsn, tot: tot, l: lv, r: r, f: f, g: g });
+  // level-ups: compare with the levels from the last refresh of the same character
+  var key = "lv_" + game, prev = null, lu = null;
+  try { prev = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) {}
+  if (prev && prev.rsn === c.rsn && prev.l && prev.l.length === lv.length) {
+    for (var q = 0; q < lv.length; q++) if (lv[q] > prev.l[q]) lu = [q, lv[q], now()];
+    if (!lu && prev.lu && now() - prev.lu[2] < 3600) lu = prev.lu;   // keep a recent one for the hour
+  }
+  localStorage.setItem(key, JSON.stringify({ rsn: c.rsn, l: lv, lu: lu }));
+  var b = { gm: game, n: c.rsn, ac: c.acct, tot: tot, l: lv, r: r, f: f, g: g };
+  if (lu) b.lu = lu;
+  if (c.kc) b.kc = c.kc;
+  then(b);
+}
+// the chosen boss or clue from the hiscores' activities, with a short label for the watch
+function kcLabel(n) {
+  var m = /^Clue Scrolls \((\w+)\)$/.exec(n);
+  if (m) return m[1] === "all" ? "All clues" : m[1].charAt(0).toUpperCase() + m[1].slice(1) + " clues";
+  n = n.replace(/^The /, "").replace(/: Challenge Mode$/, " CM").replace(/: Hard Mode$/, " HM").replace(/: Expert Mode$/, " Expert");
+  n = n.replace("Theatre of Blood", "ToB").replace("Chambers of Xeric", "CoX").replace("Tombs of Amascut", "ToA").replace("Thermonuclear Smoke Devil", "Thermy");
+  return n.length > 13 ? n.slice(0, 12) + "." : n;
+}
+function pickKc(acts, name) {
+  if (!name || !acts) return null;
+  for (var i = 0; i < acts.length; i++) if (acts[i].name === name) return { l: kcLabel(name), s: acts[i].score, k: acts[i].rank, n: name };
+  return null;
 }
 function hsFail(c, game, e, then) {
   console.log(game + " hiscores failed " + e);
@@ -212,6 +257,10 @@ function fetchOsrs(c, then) {
       lv[idx] = Math.max(1, sk[i].level); xp[idx] = Math.max(0, sk[i].xp);   // unranked = -1
     }
     for (var k = 0; k < SKILLS.length; k++) { if (lv[k] === undefined) { lv[k] = 1; xp[k] = 0; } }
+    // the activity names (bosses, clues, minigames) for the settings page's kill-count picker
+    var acts = j.activities || [];
+    if (acts.length) try { localStorage.setItem("acts", JSON.stringify(acts.map(function (a) { return a.name; }))); } catch (e) {}
+    c.kc = pickKc(acts, getCfg().kcName);
     hsDone(c, "osrs", lv, xp, tot, then);
   }, function (e) { hsFail(c, "osrs", e, then); });
 }
@@ -265,6 +314,44 @@ function fetchHiscores(then) {
   next(0);
 }
 
+// ---------------------------------------------------------------- Grand Exchange price watch
+var WIKI = "https://prices.runescape.wiki/api/v1/osrs/";
+var lastGe = 0;
+function geNeeded(c) { return !!c.geItem && (c.hsMode === "ge" || c.cm.indexOf("g") >= 0); }
+function geId(name, ok, fail) {
+  var cache = null; try { cache = JSON.parse(localStorage.getItem("geId") || "null"); } catch (e) {}
+  if (cache && cache.q === name.toLowerCase()) { ok(cache.id, cache.n); return; }
+  get(WIKI + "mapping", function (list) {
+    var q = name.toLowerCase(), hit = null, part = null;
+    for (var i = 0; i < list.length; i++) {
+      var nm = String(list[i].name).toLowerCase();
+      if (nm === q) { hit = list[i]; break; }
+      if (!part && nm.indexOf(q) >= 0) part = list[i];
+    }
+    hit = hit || part;
+    if (!hit) { fail("item not found"); return; }
+    localStorage.setItem("geId", JSON.stringify({ q: q, id: hit.id, n: hit.name }));
+    ok(hit.id, hit.name);
+  }, function () { fail(null); });
+}
+function fetchGe(then) {
+  var c = getCfg();
+  if (!geNeeded(c)) { data.ge = null; if (then) then(); return; }
+  geId(c.geItem, function (id, name) {
+    get(WIKI + "latest?id=" + id, function (j) {
+      var it = (j.data || {})[id] || {}, p = it.high || it.low || 0;
+      get(WIKI + "timeseries?timestep=24h&id=" + id, function (ts) {
+        var pts = (ts.data || []).filter(function (x) { return x.avgHighPrice; }), y = pts.length > 1 ? pts[pts.length - 2].avgHighPrice : 0;
+        data.ge = { n: name.length > 13 ? name.slice(0, 12) + "." : name, p: p, c: y ? Math.round((p - y) * 1000 / y) / 10 : 0, at: now() };
+        lastGe = now(); if (then) then();
+      }, function () { data.ge = { n: name, p: p, c: 0, at: now() }; lastGe = now(); if (then) then(); });
+    }, function (e) { console.log("ge price failed " + e); if (then) then(); });
+  }, function (err) {
+    if (err) data.ge = { err: err };              // a real "not found"; network trouble keeps the last price
+    if (then) then();
+  });
+}
+
 // ---------------------------------------------------------------- refresh
 var timer = null;
 // One fetch round at a time: launch fires `ready` and the watch's RDY together, which used to
@@ -277,7 +364,7 @@ function refresh(force) {
   if (MOCK) { MOCK_W.at = now(); MOCK_W.u = "C"; data.w = MOCK_W; data.hs = null; sendData(); return; }
   if (busy && now() - busy < 120) { again = true; return; }   // the follow-up skips what this round fetched
   var round = busy = now();
-  var c = getCfg(), pending = 2;
+  var c = getCfg(), pending = 3;
   function done() {
     if (--pending || busy !== round) return;
     busy = 0; sendData();
@@ -285,6 +372,7 @@ function refresh(force) {
   }
   if (force || now() - lastWx >= c.wxMin * 60 - 30) fetchWeather(done); else done();
   if (force || now() - lastHs >= 3 * 3600 - 60) fetchHiscores(done); else done();
+  if (force || now() - lastGe >= 30 * 60 - 30 || (geNeeded(c) && !data.ge)) fetchGe(done); else done();
 }
 function schedule() {
   if (timer) clearInterval(timer);
@@ -315,6 +403,8 @@ function json(v) { return JSON.stringify(v).replace(/</g, "\u003c"); }   // safe
 function configHtml(c) {
   return PAGE.replace("__CFG__", function () { return json(c); })
     .replace("__DATA__", function () { return json(data); })
+    .replace("__ACTS__", function () { var a = null; try { a = JSON.parse(localStorage.getItem("acts") || "null"); } catch (e) {} return json(a); })
+    .replace("__PLATFORM__", function () { var p = "emery"; try { p = Pebble.getActiveWatchInfo().platform || p; } catch (e) {} return json(p); })
     .replace("__VERSION__", APP_VERSION);
 }
 Pebble.addEventListener("showConfiguration", function () {
@@ -331,12 +421,18 @@ Pebble.addEventListener("webviewclosed", function (e) {
   clamp("distGoal", 0.5, 50); clamp("calGoal", 50, 3000);
   if (!(c.orbs instanceof Array) || c.orbs.length !== 4) c.orbs = DEFAULTS.orbs;
   c.orbs = c.orbs.map(function (m, i) { return ORB_METRICS.indexOf(m) >= 0 ? m : DEFAULTS.orbs[i]; });
-  c.cm = String(c.cm).replace(/[^rsxcw]/g, "");
+  c.cm = String(c.cm).replace(new RegExp("[^" + CM_LETTERS + "]", "g"), "");
+  if (["stone", "dark", "bright"].indexOf(c.theme) < 0) c.theme = "stone";
+  c.helm = c.helm !== false;
+  c.kcName = String(c.kcName || ""); c.geItem = String(c.geItem || "").trim();
+  c.cmv = 2;
   if (!c.osrsOn && !c.rs3On) c.osrsOn = true;
   setCfg(c);
   sendCfg();
   if (c.osrsName !== old.osrsName || c.osrsAcct !== old.osrsAcct || c.osrsOn !== old.osrsOn ||
       c.rs3Name !== old.rs3Name || c.rs3Acct !== old.rs3Acct || c.rs3On !== old.rs3On) lastHs = 0;
   if (c.loc !== old.loc || c.city !== old.city || c.units !== old.units) lastWx = 0;
+  if (c.kcName !== old.kcName) lastHs = 0;
+  if (c.geItem !== old.geItem || geNeeded(c) !== geNeeded(old)) { lastGe = 0; localStorage.removeItem("geId"); if (!c.geItem) data.ge = null; }
   refresh(false);
 });
