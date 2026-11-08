@@ -1,16 +1,35 @@
 {
   "include": [
-    "$(MODDABLE)/examples/manifest_mod.json",
-    "$(MODDABLE)/examples/manifest_typings.json"
+    "$(MODDABLE)/examples/manifest_mod.json"
   ],
-  "modules": {
-    "*": "./main"
-  },
+  "modules": {},
   "resources": {
     "*-alpha": [
-      "./fonts/px-n",
-      "./fonts/px-m",
-      "./fonts/px-clk"
+      "./fonts/px-n"
     ]
+  },
+  "platforms": {
+    "pebble/emery": {
+      "resources": {
+        "*-alpha": [
+          "./fonts/px-m",
+          "./fonts/px-clk"
+        ]
+      },
+      "modules": {
+        "main": "./gen/main-emery"
+      }
+    },
+    "pebble/gabbro": {
+      "resources": {
+        "*-alpha": [
+          "./fonts/px-n3",
+          "./fonts/px-c5"
+        ]
+      },
+      "modules": {
+        "main": "./gen/main-gabbro"
+      }
+    }
   }
 }

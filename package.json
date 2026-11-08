@@ -1,7 +1,7 @@
 {
   "name": "GielinorHUD",
   "author": "Technoid",
-  "version": "26.11.1",
+  "version": "26.11.2",
   "keywords": ["pebble-app", "watchface", "pixel", "rpg", "weather", "health"],
   "private": true,
   "dependencies": {},
@@ -12,7 +12,7 @@
     "sdkVersion": "3",
     "enableMultiJS": true,
     "capabilities": ["configurable", "location", "health"],
-    "targetPlatforms": ["emery"],
+    "targetPlatforms": ["emery", "gabbro"],
     "watchapp": { "watchface": true },
     "messageKeys": ["DATA", "CFG", "RDY"],
     "resources": { "media": [] }

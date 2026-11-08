@@ -11,6 +11,8 @@ terminator the host parser needs):
   px-n    capitals 3x5, 2x  (cap 10px)  small labels, chatbox (own glyph table, N below)
   px-m    full charset, 2x   (cap 14px)  orb values, temperatures, panel headings
   px-clk  digits + colon, 4x (cap 28px)  the clock
+  px-n3   px-n's capitals at 3x (cap 15px)  Round 2: all text but the clock
+  px-c5   digits + colon, 5x (cap 35px)  Round 2: the clock and the big numbers in the minimap
 
 Coverage is hard 0/255 (no anti-aliasing) so the pixels stay crisp; main.js draws each string
 twice (black, offset one art-pixel down-right, then the colour) for the drop shadow.
@@ -165,13 +167,20 @@ for ch, art in {
 for c in "abcdefghijklmnopqrstuvwxyz": N[c] = N[c.upper()]
 NCHARS = sorted(N, key=ord)
 
-def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=CAP):
+def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=CAP, even=False):
+    """even: centred text lands on the true centre. Each glyph is cut to its ink and the one
+    art-pixel gap between letters is split either side of it (xoffset s//2), instead of all
+    after it, so a string's ink sits in the middle of its measured width (to half a pixel)."""
     table = G if table is None else table
     items = []
     for ch in chars:
         rows = table[ch]
-        w = len(rows[0])
         on = [(x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c == "#"]
+        if even and on:
+            x0 = min(x for x, _ in on)
+            rows = [r[x0:max(x for x, _ in on) + 1] for r in rows]
+            on = [(x - x0, y) for x, y in on]
+        w = len(rows[0])
         adv = (w + 1) * s
         if not on:
             items.append((ch, None, 0, 0, adv)); continue
@@ -181,9 +190,16 @@ def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=
             for dy in range(s):
                 for dx in range(s):
                     im.putpixel((x * s + dx, (y - y0) * s + dy), 255)
-        items.append((ch, im, 0, y0 * s, adv))
+        items.append((ch, im, s // 2 if even else 0, y0 * s, adv))
+    # identical bitmaps share one atlas spot (px-n's lowercase letters are its capitals)
+    same = {}
+    for i, it in enumerate(items):
+        if it[1]:
+            key = (it[1].size, it[1].tobytes(), it[3])
+            same.setdefault(key, i)
+    alias = {i: same[(it[1].size, it[1].tobytes(), it[3])] for i, it in enumerate(items) if it[1]}
     # shelf pack, tallest first
-    boxes = [(i, it[1].size) for i, it in enumerate(items) if it[1]]
+    boxes = [(i, it[1].size) for i, it in enumerate(items) if it[1] and alias[i] == i]
     total = sum((w + 1) * (h + 1) for _, (w, h) in boxes)
     maxW = max(64, int(math.sqrt(total) * 1.3))
     x = y = rowh = W = 0; place = {}
@@ -194,6 +210,7 @@ def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=
     H = y + rowh + 2; W += 2
     cover = Image.new("L", (W, H), 0)
     for i, p in place.items(): cover.paste(items[i][1], p)
+    for i, j in alias.items(): place[i] = place[j]
     zero = Image.new("L", (W, H), 0)
     Image.merge("RGBA", (zero, zero, zero, cover)).save(os.path.join(OUT, name + ".png"))
     lh, base = (nrows + 1) * s, base_row * s
@@ -215,5 +232,8 @@ def build(name, chars, s, label, table=None, nrows=ROWS, base_row=BASE_ROW, cap=
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     build("px-n", NCHARS, 2, "GielinorPx N", table=N, nrows=N_ROWS, base_row=N_CAP, cap=N_CAP)
+    # Pebble Round 2 only (see manifest.json): the same glyphs, bigger, for its round layout
+    build("px-n3", NCHARS, 3, "GielinorPx N3", table=N, nrows=N_ROWS, base_row=N_CAP, cap=N_CAP, even=True)
+    build("px-c5", CLOCK, 5, "GielinorPx Clock 5", even=True)
     build("px-m", FULL, 2, "GielinorPx M")
     build("px-clk", CLOCK, 4, "GielinorPx Clock")
