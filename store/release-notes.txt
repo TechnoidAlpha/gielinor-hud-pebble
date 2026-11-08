@@ -1,0 +1,1 @@
+v26.11.2: Pebble Round 2 support (beta) with its own minimap layout in bigger text and an XP ring. New: Dark and Bright themes, boss and clue kill counts, a Grand Exchange price watch, level-up moments, Ironman helms, and a rain countdown, sunrise/sunset, feels-like and wind in the chatbox. The face now makes room for Timeline Quick View. Lighter on memory.
