@@ -1,6 +1,9 @@
-# Builds the watchface and publishes it as a GitHub Release when a version tag is pushed.
+# Builds the watchface and publishes it as a GitHub Release, either when a version tag is pushed:
 #
 #   git tag v26.11.1 && git push origin v26.11.1
+#
+# or from the Actions tab (works from a phone): Release -> Run workflow on main, with the tag to
+# create, e.g. v26.11.2. The release action then creates that tag on the commit it built.
 #
 # Versions are YY.MM.REV with no leading zeros (the appstore wants numbers <= 255 per part). Bump
 # package.json "version", VERSION in main.js and APP_VERSION in pkjs together; the job checks.
@@ -12,6 +15,11 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to create and release, e.g. v26.11.2"
+        required: true
 
 permissions:
   contents: write
@@ -19,6 +27,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +62,8 @@ jobs:
           grep -q '^const DEMO_LU = false;' src/embeddedjs/main.js
           grep -q '^var MOCK = false;' src/pkjs/index.js
           # tag, package.json (what the appstore reads) and both in-code versions must agree
-          V="${GITHUB_REF_NAME#v}"; V="${V%%-*}"
+          case "$TAG" in v[0-9]*) ;; *) echo "not a version tag: $TAG"; exit 1;; esac
+          V="${TAG#v}"; V="${V%%-*}"
           grep -q "\"version\": \"$V\"" package.json
           grep -q "^const VERSION = \"$V\";" src/embeddedjs/main.js
           grep -q "^var APP_VERSION = \"$V\";" src/pkjs/index.js
@@ -60,7 +71,6 @@ jobs:
       - name: Prepare release files
         id: prep
         run: |
-          TAG="${GITHUB_REF_NAME}"
           cp build/*.pbw "GielinorHUD-${TAG}.pbw"   # build/<folder name>.pbw
           # release notes: the CHANGELOG section for this tag, up to the next "## "
           awk -v t="## ${TAG}" '$0 ~ "^## " { p = (index($0, t) == 1) } p' CHANGELOG.md > notes.md
@@ -69,6 +79,9 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: GielinorHUD-${{ github.ref_name }}.pbw
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ env.TAG }}
+          files: GielinorHUD-${{ env.TAG }}.pbw
           body_path: notes.md
           prerelease: ${{ steps.prep.outputs.pre }}
