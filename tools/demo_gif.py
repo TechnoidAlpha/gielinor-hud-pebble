@@ -11,7 +11,7 @@ from PIL import Image
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 SHOTS = os.path.join(ROOT, "docs", "screenshots")
-FRAMES = ["hero", "sunny", "next", "today", "storm", "night"]
+FRAMES = ["hero", "sunny", "next", "today", "storm", "night", "dark", "kc", "ge", "levelup", "bright"]
 
 def main():
     frames = []

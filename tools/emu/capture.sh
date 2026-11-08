@@ -21,9 +21,17 @@ fi
 python3 - "$OUTPNG" <<'EOF'
 import json, os, socket, subprocess, sys, time
 out = sys.argv[1]
+# the state file keeps entries for emulators that have since stopped: use one whose qemu is alive,
+# preferring $PLATFORM when it is set
+def alive(pid):
+    try: os.kill(pid, 0); return True
+    except Exception: return False
 try:
     st = json.load(open("/tmp/pb-emulator.json"))
-    port = [v for plat in st.values() for v in plat.values()][0]["qemu"]["monitor"]
+    runs = [(plat, v) for plat, vs in st.items() for v in vs.values() if alive(v["qemu"]["pid"])]
+    want = os.environ.get("PLATFORM")
+    runs.sort(key=lambda r: r[0] != want)
+    port = runs[0][1]["qemu"]["monitor"]
 except Exception as e:
     sys.exit("no running emulator (/tmp/pb-emulator.json): %s" % e)
 ppm = out + ".ppm"

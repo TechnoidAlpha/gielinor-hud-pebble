@@ -3,6 +3,7 @@
 # appears on the Windows desktop (WSL's DISPLAY is WSLg, which puts qemu windows on the real screen).
 #
 #   tools/emu/emu.sh boot            # wipe, launch, install the current build, wait for the face
+#   PLATFORM=gabbro tools/emu/emu.sh boot   # the Pebble Round 2 emulator instead of the Time 2
 #   tools/emu/emu.sh shot <name>     # screenshot into tools/emu/out/<name>.png
 #   tools/emu/emu.sh stop            # kill the emulator and the virtual display
 #   tools/emu/emu.sh status
@@ -52,7 +53,7 @@ case "${1:-status}" in
     # setsid: qemu and pypkjs are children of `pebble install`, so without a new session they die
     # with whatever shell launched the boot. A detached session lets the emulator outlive the call,
     # which is the whole point - later installs and screenshots reuse it instead of rebooting.
-    ( cd "$REPO" && setsid --wait timeout 240 pebble install --emulator emery >"$OUT/install.log" 2>&1 )
+    ( cd "$REPO" && setsid --wait timeout 240 pebble install --emulator "${PLATFORM:-emery}" >"$OUT/install.log" 2>&1 )
     rc=$?
     # A cold pypkjs (first start after a fresh pebble-tool install, still compiling its bytecode)
     # is not listening yet when pebble-tool connects: "[Errno 111] Connection refused". The
@@ -60,7 +61,7 @@ case "${1:-status}" in
     if [ $rc -ne 0 ] && grep -q "Connection refused" "$OUT/install.log"; then
       echo "pypkjs was not listening yet (cold start); retrying the install once"
       sleep 5
-      ( cd "$REPO" && setsid --wait timeout 180 pebble install --emulator emery >"$OUT/install.log" 2>&1 )
+      ( cd "$REPO" && setsid --wait timeout 180 pebble install --emulator "${PLATFORM:-emery}" >"$OUT/install.log" 2>&1 )
       rc=$?
     fi
     tail -5 "$OUT/install.log" 2>/dev/null
